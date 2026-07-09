@@ -1,0 +1,48 @@
+{
+  "modules": [
+    {
+      "vendor_id": "0781",
+      "product_id": "5567",
+      "name": "SanDisk Cruzer Blade",
+      "category": "storage",
+      "description": "USB 2.0 flash drive",
+      "on_attach": {
+        "action": "mount",
+        "options": "-o flush,noatime"
+      },
+      "on_detach": {
+        "action": "unmount"
+      }
+    },
+    {
+      "vendor_id": "046d",
+      "product_id": "c077",
+      "name": "Logitech M105 Mouse",
+      "category": "hid",
+      "description": "USB optical mouse"
+    },
+    {
+      "vendor_id": "1a86",
+      "product_id": "7523",
+      "name": "CH340 Serial Adapter",
+      "category": "serial",
+      "description": "USB-to-serial adapter"
+    }
+  ],
+  "defaults": {
+    "storage": {
+      "on_attach": {
+        "action": "mount",
+        "options": "-o flush,noatime"
+      },
+      "on_detach": {
+        "action": "unmount"
+      },
+      "sync_policy": {
+        "mode": "idle",
+        "idle_sync_delay": 5,
+        "fallback_sync_interval": 60
+      }
+    }
+  }
+}

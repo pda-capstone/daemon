@@ -1,0 +1,14 @@
+# Object files
+*.o
+*.obj
+
+# Project binaries
+hotswapd
+hsctl
+
+# Artifacts
+artifacts/*
+
+# macOS files
+.DS_Store
+
