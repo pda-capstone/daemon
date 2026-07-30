@@ -1,0 +1,12 @@
+-xc
+-std=c11
+-Wall
+-Wextra
+-Werror
+-Wpedantic
+-D_GNU_SOURCE
+-Iinclude
+-I/usr/include/dbus-1.0
+-I/usr/lib/x86_64-linux-gnu/dbus-1.0/include
+-I/usr/include/json-c
+-I/home/linuxbrew/.linuxbrew/Cellar/systemd/260.1_1/include

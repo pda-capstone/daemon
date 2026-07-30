@@ -1,0 +1,15 @@
+[Unit]
+Description=USB Hot-Swap Peripheral Daemon
+Documentation=man:hotswapd(8)
+Wants=systemd-udevd.service
+After=systemd-udevd.service dbus.service
+
+[Service]
+Type=dbus
+BusName=org.postmarketos.HotSwap
+ExecStart=/usr/sbin/hotswapd -f
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target
