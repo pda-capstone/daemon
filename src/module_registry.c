@@ -22,7 +22,7 @@
 
 #include <json-c/json.h>
 
-/* Internal types */
+/* ── Internal types ──────────────────────────────────────────────────────── */
 
 /* Per-category defaults */
 struct category_defaults {
@@ -51,7 +51,7 @@ struct module_registry {
     int watch_fd;
 };
 
-/* Helpers */
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 
 /**
  * Safely copy a JSON string value into a fixed-size buffer.
@@ -77,7 +77,8 @@ static void json_strcpy(char *dst, size_t dstlen,
 }
 
 /**
- * Parse an action object: { "action": "mount", "options": "-o flush" }
+ * Parse an action object. mount_point is optional and may contain {device},
+ * which is expanded to the selected block-device basename at attach time.
  */
 static void parse_action(struct json_object *obj, struct module_action *act)
 {
@@ -88,6 +89,8 @@ static void parse_action(struct json_object *obj, struct module_action *act)
 
     json_strcpy(act->action, sizeof(act->action), obj, "action");
     json_strcpy(act->options, sizeof(act->options), obj, "options");
+    json_strcpy(act->mount_point, sizeof(act->mount_point), obj,
+                "mount_point");
     act->has_action = (act->action[0] != '\0') ? 1 : 0;
 }
 
@@ -353,7 +356,7 @@ static int registry_setup_watch(struct module_registry *reg)
     return 0;
 }
 
-/* Public API - Lifecycle */
+/* ── Public API — Lifecycle ──────────────────────────────────────────────── */
 
 struct module_registry *registry_load(const char *path)
 {
@@ -428,7 +431,7 @@ void registry_free(struct module_registry *reg)
     free(reg);
 }
 
-/* Public API - Lookup */
+/* ── Public API — Lookup ─────────────────────────────────────────────────── */
 
 const struct module_info *registry_lookup(const struct module_registry *reg,
                                           const char *vendor_id,
@@ -477,7 +480,7 @@ const struct module_sync_policy *registry_default_sync(
     return &reg->defaults[cat].sync_policy;
 }
 
-/* Public API - inotify */
+/* ── Public API — inotify ────────────────────────────────────────────────── */
 
 int registry_get_inotify_fd(const struct module_registry *reg)
 {
@@ -532,7 +535,7 @@ int registry_handle_inotify_event(struct module_registry *reg)
     return registry_reload(reg);
 }
 
-/* Public API - Introspection */
+/* ── Public API — Introspection ──────────────────────────────────────────── */
 
 int registry_count(const struct module_registry *reg)
 {

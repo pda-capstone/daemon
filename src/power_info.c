@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Helpers */
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 
 /**
  * Read a sysfs attribute file into a buffer, stripping the trailing newline.
@@ -54,7 +54,7 @@ static int read_sysfs_attr(const char *dir, const char *attr,
     return (int)len;
 }
 
-/* Public parsers */
+/* ── Public parsers ──────────────────────────────────────────────────────── */
 
 unsigned int power_parse_bMaxPower(const char *str)
 {
@@ -96,7 +96,7 @@ int power_parse_self_powered(const char *str)
     return (val & 0x40) ? 1 : 0;
 }
 
-/* Legacy USB power */
+/* ── Legacy USB power ────────────────────────────────────────────────────── */
 
 int power_read_legacy(const char *syspath, struct hs_device *dev)
 {
@@ -148,7 +148,7 @@ int power_read_legacy(const char *syspath, struct hs_device *dev)
     return 0;
 }
 
-/* USB-C Power Delivery */
+/* ── USB-C Power Delivery ────────────────────────────────────────────────── */
 
 int power_read_pd(struct hs_device *dev)
 {
@@ -166,7 +166,7 @@ int power_read_pd(struct hs_device *dev)
     return 0;
 }
 
-/* Human-readable summary */
+/* ── Human-readable summary ──────────────────────────────────────────────── */
 
 int power_format_string(const struct hs_device *dev, char *buf, size_t len)
 {

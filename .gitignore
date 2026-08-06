@@ -3,8 +3,8 @@
 *.obj
 
 # Project binaries
-hotswapd
-hsctl
+/hotswapd
+/hsctl
 
 # Artifacts
 artifacts/*

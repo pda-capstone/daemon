@@ -17,13 +17,14 @@
 #include "../include/device_state.h"
 #include "../include/log.h"
 #include "../include/power_info.h"
+#include "../include/usb_classification.h"
 
 #include <libudev.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-/* Internal structure */
+/* ── Internal structure ──────────────────────────────────────────────────── */
 
 struct device_monitor {
   struct udev *udev;
@@ -34,7 +35,7 @@ struct device_monitor {
   monitor_detach_cb on_detach;
 };
 
-/* Helpers */
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 
 /**
  * Safely copy a string, defaulting to "" if src is NULL.
@@ -52,40 +53,65 @@ static void safe_strncpy(char *dst, const char *src, size_t n) {
   }
 }
 
-/**
- * Guess a device category from USB class codes.
- *
- * Uses bDeviceClass from the USB descriptor.  If bDeviceClass == 0x00
- * (per-interface), we would need to inspect interface classes — for now
- * we fall back to DEV_CAT_UNKNOWN and let the registry override.
- */
-static enum device_category guess_category_from_class(const char *class_str) {
-  if (!class_str) {
-    return DEV_CAT_UNKNOWN;
+static size_t collect_interface_classes(struct udev_device *usb_device,
+                                        unsigned int *classes,
+                                        size_t capacity) {
+  if (!usb_device || !classes || capacity == 0) {
+    return 0;
   }
 
-  unsigned int cls = (unsigned int)strtoul(class_str, NULL, 16);
+  size_t count = 0;
 
-  switch (cls) {
-  case 0x01:
-    return DEV_CAT_AUDIO; /* Audio */
-  case 0x02:
-    return DEV_CAT_SERIAL; /* CDC / serial */
-  case 0x03:
-    return DEV_CAT_HID; /* HID */
-  case 0x08:
-    return DEV_CAT_STORAGE; /* Mass Storage */
-  case 0x09:
-    return DEV_CAT_HUB; /* Hub */
-  case 0x0e:
-    return DEV_CAT_VIDEO; /* Video */
-  case 0x0a:
-    return DEV_CAT_SERIAL; /* CDC-Data */
-  case 0xe0:
-    return DEV_CAT_NETWORK; /* Wireless controller */
-  default:
-    return DEV_CAT_UNKNOWN;
+  /*
+   * usb_id exposes all descriptor interfaces as colon-delimited class,
+   * subclass, and protocol triples (for example ":080650:030102:"). This
+   * is available on the usb_device event even when child udev events have not
+   * yet been delivered.
+   */
+  const char *interfaces =
+      udev_device_get_property_value(usb_device, "ID_USB_INTERFACES");
+  for (const char *cursor = interfaces; cursor && *cursor && count < capacity;
+       cursor++) {
+    if (*cursor == ':' && cursor[1] && cursor[2]) {
+      char class_string[3] = {cursor[1], cursor[2], '\0'};
+      char *end = NULL;
+      unsigned long value = strtoul(class_string, &end, 16);
+      if (end && *end == '\0') {
+        classes[count++] = (unsigned int)value;
+      }
+    }
   }
+
+  struct udev *udev = udev_device_get_udev(usb_device);
+  struct udev_enumerate *enumerate = udev_enumerate_new(udev);
+  if (!enumerate) {
+    return count;
+  }
+
+  udev_enumerate_add_match_subsystem(enumerate, "usb");
+  udev_enumerate_add_match_parent(enumerate, usb_device);
+  udev_enumerate_scan_devices(enumerate);
+
+  struct udev_list_entry *entry;
+  udev_list_entry_foreach(entry, udev_enumerate_get_list_entry(enumerate)) {
+    struct udev_device *child = udev_device_new_from_syspath(
+        udev, udev_list_entry_get_name(entry));
+    if (!child) {
+      continue;
+    }
+
+    const char *devtype = udev_device_get_devtype(child);
+    const char *class_string =
+        udev_device_get_sysattr_value(child, "bInterfaceClass");
+    if (devtype && strcmp(devtype, "usb_interface") == 0 && class_string &&
+        count < capacity) {
+      classes[count++] = (unsigned int)strtoul(class_string, NULL, 16);
+    }
+    udev_device_unref(child);
+  }
+
+  udev_enumerate_unref(enumerate);
+  return count;
 }
 
 static void apply_sync_policy(struct hs_device *dev,
@@ -124,6 +150,7 @@ populate_device(struct udev_device *udev_dev,
     return NULL;
   }
 
+  dev->attach_timer_fd = -1;
   dev->sync_timer_fd = -1;
   dev->state = DEV_STATE_ATTACHED;
   clock_gettime(CLOCK_MONOTONIC, &dev->attached_at);
@@ -169,20 +196,34 @@ populate_device(struct udev_device *udev_dev,
   }
   safe_strncpy(dev->serial, serial, sizeof(dev->serial));
 
-  /* Category — from USB device class */
+  /*
+   * Classification precedence is registry, device class, interface classes,
+   * then unknown. Interface inspection handles device-level class 00 and
+   * composite devices without special-casing a VID/PID.
+   */
   const char *devclass =
       udev_device_get_sysattr_value(udev_dev, "bDeviceClass");
-  dev->category = guess_category_from_class(devclass);
+  unsigned int device_class =
+      devclass ? (unsigned int)strtoul(devclass, NULL, 16) : 0;
+  unsigned int interface_classes[32];
+  size_t interface_class_count = collect_interface_classes(
+      udev_dev, interface_classes,
+      sizeof(interface_classes) / sizeof(interface_classes[0]));
 
-  /* Override category from registry if we have a match */
+  const struct module_info *info = NULL;
   if (registry) {
-    const struct module_info *info =
-        registry_lookup(registry, dev->vendor_id, dev->product_id);
+    info = registry_lookup(registry, dev->vendor_id, dev->product_id);
+  }
+  dev->category = usb_resolve_category(
+      info != NULL, info ? info->category : DEV_CAT_UNKNOWN, device_class,
+      interface_classes, interface_class_count);
+
+  /* Apply registry metadata and category defaults after classification. */
+  if (registry) {
     if (info) {
       if (dev->product_name[0] == '\0') {
         safe_strncpy(dev->product_name, info->name, sizeof(dev->product_name));
       }
-      dev->category = info->category;
       if (info->has_sync_policy) {
         apply_sync_policy(dev, &info->sync_policy);
       } else {
@@ -193,6 +234,21 @@ populate_device(struct udev_device *udev_dev,
                category_to_string(info->category));
     } else {
       apply_sync_policy(dev, registry_default_sync(registry, dev->category));
+    }
+
+    const struct module_action *attach_action =
+        info && info->on_attach.has_action
+            ? &info->on_attach
+            : registry_default_attach(registry, dev->category);
+    const struct module_action *detach_action =
+        info && info->on_detach.has_action
+            ? &info->on_detach
+            : registry_default_detach(registry, dev->category);
+    if (attach_action) {
+      dev->on_attach_action = *attach_action;
+    }
+    if (detach_action) {
+      dev->on_detach_action = *detach_action;
     }
   }
 
@@ -208,7 +264,7 @@ populate_device(struct udev_device *udev_dev,
   return dev;
 }
 
-/* Public API */
+/* ── Public API ──────────────────────────────────────────────────────────── */
 
 struct device_monitor *monitor_create(const struct module_registry *reg,
                                       monitor_attach_cb on_attach,

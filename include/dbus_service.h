@@ -15,7 +15,7 @@
 #include "hotswapd.h"
 #include <dbus/dbus.h>
 
-/* Lifecycle */
+/* ── Lifecycle ───────────────────────────────────────────────────────────── */
 
 /**
  * Initialize the D-Bus service.  Connects to the system bus and
@@ -39,7 +39,7 @@ void dbus_service_shutdown(void);
  */
 DBusConnection *dbus_service_get_connection(void);
 
-/* Signal emission */
+/* ── Signal emission ─────────────────────────────────────────────────────── */
 
 /**
  * Emit a ModuleAttached signal.
@@ -67,7 +67,13 @@ int dbus_emit_module_detached(const char *devpath, const char *name,
 int dbus_emit_power_changed(unsigned int total_draw_ma,
                             unsigned int device_count);
 
-/* Method dispatch */
+/** Emit ModuleReadyForRemoval(ss): devpath, name. */
+int dbus_emit_module_ready(const struct hs_device *dev);
+
+/** Emit ModuleReleaseFailed(ss): devpath (or selector), reason. */
+int dbus_emit_release_failed(const char *devpath, const char *reason);
+
+/* ── Method dispatch ─────────────────────────────────────────────────────── */
 
 /**
  * Process incoming D-Bus messages.  Call this when D-Bus indicates
@@ -83,7 +89,7 @@ int dbus_emit_power_changed(unsigned int total_draw_ma,
 DBusHandlerResult dbus_handle_message(DBusConnection *conn, DBusMessage *msg,
                                       void *userdata);
 
-/* epoll integration helpers */
+/* ── epoll integration helpers ───────────────────────────────────────────── */
 
 /**
  * Set up D-Bus watch functions so that D-Bus fds are managed by
