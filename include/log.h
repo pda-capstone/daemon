@@ -10,7 +10,7 @@
 #ifndef HOTSWAPD_LOG_H
 #define HOTSWAPD_LOG_H
 
-/* Log levels */
+/* ── Log levels ──────────────────────────────────────────────────────────── */
 
 enum log_level {
     LOG_LVL_ERROR = 0,
@@ -20,7 +20,7 @@ enum log_level {
     LOG_LVL_DEBUG
 };
 
-/* Initialization */
+/* ── Initialization ──────────────────────────────────────────────────────── */
 
 /**
  * Initialize the logging subsystem.
@@ -35,7 +35,7 @@ void log_init(int use_syslog, int verbosity);
  */
 void log_shutdown(void);
 
-/* Core logging function */
+/* ── Core logging function ───────────────────────────────────────────────── */
 
 /**
  * Log a message at the given level.
@@ -44,12 +44,12 @@ void log_shutdown(void);
 void log_msg(enum log_level level, const char *fmt, ...)
     __attribute__((format(printf, 2, 3)));
 
-/* Convenience macros */
+/* ── Convenience macros ──────────────────────────────────────────────────── */
 
-#define LOG_ERR(fmt, ...)     log_msg(LOG_LVL_ERROR,   fmt, ##__VA_ARGS__)
-#define LOG_WARN(fmt, ...)    log_msg(LOG_LVL_WARN,    fmt, ##__VA_ARGS__)
-#define LOG_INFO(fmt, ...)    log_msg(LOG_LVL_INFO,    fmt, ##__VA_ARGS__)
-#define LOG_VERBOSE(fmt, ...) log_msg(LOG_LVL_VERBOSE, fmt, ##__VA_ARGS__)
-#define LOG_DEBUG(fmt, ...)   log_msg(LOG_LVL_DEBUG,   fmt, ##__VA_ARGS__)
+#define LOG_ERR(...)     log_msg(LOG_LVL_ERROR,   __VA_ARGS__)
+#define LOG_WARN(...)    log_msg(LOG_LVL_WARN,    __VA_ARGS__)
+#define LOG_INFO(...)    log_msg(LOG_LVL_INFO,    __VA_ARGS__)
+#define LOG_VERBOSE(...) log_msg(LOG_LVL_VERBOSE, __VA_ARGS__)
+#define LOG_DEBUG(...)   log_msg(LOG_LVL_DEBUG,   __VA_ARGS__)
 
 #endif /* HOTSWAPD_LOG_H */

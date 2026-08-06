@@ -61,6 +61,11 @@ int main(void) {
             "      \"product_id\": \"5567\",\n"
             "      \"name\": \"SanDisk Cruzer Blade\",\n"
             "      \"category\": \"storage\",\n"
+            "      \"on_attach\": {\n"
+            "        \"action\": \"mount\",\n"
+            "        \"options\": \"flush,noatime\",\n"
+            "        \"mount_point\": \"/mnt/{device}\"\n"
+            "      },\n"
             "      \"sync_policy\": {\n"
             "        \"mode\": \"periodic\",\n"
             "        \"idle_sync_delay\": 7,\n"
@@ -88,6 +93,14 @@ int main(void) {
     CHECK(info && strcmp(info->name, "SanDisk Cruzer Blade") == 0,
           "module name loaded");
     CHECK(info && info->has_sync_policy == 1, "module sync policy marked");
+    CHECK(info && info->on_attach.has_action == 1,
+          "module attach action marked");
+    CHECK(info && strcmp(info->on_attach.action, "mount") == 0,
+          "module mount action loaded");
+    CHECK(info && strcmp(info->on_attach.options, "flush,noatime") == 0,
+          "module mount options loaded");
+    CHECK(info && strcmp(info->on_attach.mount_point, "/mnt/{device}") == 0,
+          "module mount point loaded");
     CHECK(info && info->sync_policy.mode == SYNC_MODE_PERIODIC,
           "exact module sync mode");
 

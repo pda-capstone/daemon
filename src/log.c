@@ -15,12 +15,12 @@
 #include <syslog.h>
 #include <time.h>
 
-/* Module state */
+/* ── Module state ────────────────────────────────────────────────────────── */
 
 static int  g_use_syslog;
 static int  g_max_level = LOG_LVL_INFO;  /* default: show INFO and above */
 
-/* Map our levels to syslog priorities */
+/* ── Map our levels to syslog priorities ─────────────────────────────────── */
 
 static int level_to_syslog_priority(enum log_level level)
 {
@@ -46,7 +46,7 @@ static const char *level_to_prefix(enum log_level level)
     return "?????";
 }
 
-/* Public API */
+/* ── Public API ──────────────────────────────────────────────────────────── */
 
 void log_init(int use_syslog, int verbosity)
 {

@@ -17,25 +17,25 @@
 #include <stdint.h>
 #include <time.h>
 
-/* Version */
+/* ── Version ─────────────────────────────────────────────────────────────── */
 
 #define HOTSWAPD_VERSION_MAJOR  0
-#define HOTSWAPD_VERSION_MINOR  1
+#define HOTSWAPD_VERSION_MINOR  2
 #define HOTSWAPD_VERSION_PATCH  0
-#define HOTSWAPD_VERSION_STRING "0.1.0"
+#define HOTSWAPD_VERSION_STRING "0.2.0"
 
-/* D-Bus identifiers */
+/* ── D-Bus identifiers ───────────────────────────────────────────────────── */
 
 #define HOTSWAP_DBUS_BUS_NAME   "org.postmarketos.HotSwap"
 #define HOTSWAP_DBUS_OBJECT_PATH "/org/postmarketos/HotSwap"
 #define HOTSWAP_DBUS_INTERFACE   "org.postmarketos.HotSwap"
 
-/* Paths */
+/* ── Paths ───────────────────────────────────────────────────────────────── */
 
 #define HOTSWAP_DEFAULT_REGISTRY_PATH "/etc/hotswapd/modules.json"
 #define HOTSWAP_PID_FILE              "/run/hotswapd.pid"
 
-/* Limits */
+/* ── Limits ──────────────────────────────────────────────────────────────── */
 
 #define HOTSWAP_MAX_MOUNT_POINTS  8
 #define HOTSWAP_MAX_DEVPATH     256
@@ -44,7 +44,7 @@
 #define HOTSWAP_MAX_SERIAL      256
 #define HOTSWAP_MAX_ROLE         16
 
-/* Device categories */
+/* ── Device categories ───────────────────────────────────────────────────── */
 
 enum device_category {
     DEV_CAT_UNKNOWN = 0,
@@ -58,7 +58,7 @@ enum device_category {
     DEV_CAT_COUNT           /* sentinel — number of categories */
 };
 
-/* Device states */
+/* ── Device states ───────────────────────────────────────────────────────── */
 
 enum device_state {
     DEV_STATE_ATTACHED = 0,
@@ -66,7 +66,7 @@ enum device_state {
     DEV_STATE_DETACHED
 };
 
-/* Sync modes (per-device storage policy) */
+/* ── Sync modes (per-device storage policy) ──────────────────────────────── */
 
 enum sync_mode {
     SYNC_MODE_IDLE = 0,     /* sync after idle_sync_delay of no writes     */
@@ -75,7 +75,16 @@ enum sync_mode {
     SYNC_MODE_DISABLED      /* no automatic syncing                        */
 };
 
-/* Core device record */
+/* ── Registry actions copied into each attached device ──────────────────── */
+
+struct module_action {
+    int  has_action;
+    char action[32];             /* "mount", "unmount", or "none"        */
+    char options[256];           /* mount options, e.g. "flush,noatime"   */
+    char mount_point[PATH_MAX];  /* optional; supports a {device} token    */
+};
+
+/* ── Core device record ──────────────────────────────────────────────────── */
 
 struct hs_device {
     /* Identity — cached at add time (sysfs is gone on remove) */
@@ -103,7 +112,12 @@ struct hs_device {
 
     /* Storage-specific fields */
     char mount_points[HOTSWAP_MAX_MOUNT_POINTS][PATH_MAX];
+    char mount_sources[HOTSWAP_MAX_MOUNT_POINTS][PATH_MAX];
     int  mount_count;
+    struct module_action on_attach_action;
+    struct module_action on_detach_action;
+    int  attach_timer_fd;        /* bounded block discovery timer, or -1  */
+    unsigned int attach_attempts;
     int  sync_timer_fd;          /* timerfd for periodic/idle sync, -1 if none */
     enum sync_mode sync_policy;
     int  idle_sync_delay_s;
@@ -118,7 +132,7 @@ struct hs_device {
     struct hs_device *next;
 };
 
-/* Utility functions */
+/* ── Utility functions ───────────────────────────────────────────────────── */
 
 /**
  * Convert a device_category enum to a human-readable string.

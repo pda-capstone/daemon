@@ -5,7 +5,7 @@
 #
 
 CC      := gcc
-CFLAGS  += -std=c11 -Wall -Wextra -Werror -D_GNU_SOURCE -Iinclude
+CFLAGS  += -std=c11 -Wall -Wextra -Wpedantic -Werror -D_GNU_SOURCE -Iinclude
 LDFLAGS +=
 
 PREFIX ?= /usr
@@ -15,15 +15,7 @@ SYSCONFDIR ?= /etc
 SYSTEMDUNITDIR ?= $(PREFIX)/lib/systemd/system
 DBUS_POLICY_DIR ?= $(SYSCONFDIR)/dbus-1/system.d
 HOTSWAPD_CONFIG_DIR ?= $(SYSCONFDIR)/hotswapd
-
-# CC      ?= gcc 				only sets if unset
-# CC      := gcc-15				forces override unconditionally at parse time
-
-# Potentially Useful Addition to CFLAGS:
-# -xc							Forces all files to be compiled as C files
-# -Wpedantic					Enables strict ISO C compliance warnings
-# gcc / gcc-15
-# -std=c11 / -std=c18 / std=c23
+MANDIR ?= $(PREFIX)/share/man
 
 # Libraries queried via pkg-config
 PKG_LIBS = libudev dbus-1 json-c
@@ -39,6 +31,8 @@ CLI    = hsctl
 # Source Files
 DAEMON_SRCS = src/main.c \
               src/device_monitor.c \
+              src/gpio_release.c \
+              src/usb_classification.c \
               src/module_registry.c \
               src/device_state.c \
               src/dbus_service.c \
@@ -66,15 +60,16 @@ $(CLI): $(CLI_OBJS)
 
 clean:
 	rm -f $(DAEMON) $(CLI) $(DAEMON_OBJS) $(CLI_OBJS)
-	rm -f tests/test_registry tests/test_device_state tests/test_power_info tests/test_storage tests/*.o src/*.o src/hsctl/*.o
+	rm -f tests/test_registry tests/test_device_state tests/test_power_info tests/test_storage tests/test_usb_classification tests/*.o src/*.o src/hsctl/*.o
 
 # Unit Tests Target
-test: tests/test_registry tests/test_device_state tests/test_power_info tests/test_storage
+test: tests/test_registry tests/test_device_state tests/test_power_info tests/test_storage tests/test_usb_classification
 	@echo "Running unit tests..."
 	./tests/test_registry
 	./tests/test_device_state
 	./tests/test_power_info
 	./tests/test_storage
+	./tests/test_usb_classification
 
 tests/test_registry: tests/test_registry.o src/module_registry.o src/log.o src/device_state.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
@@ -88,6 +83,9 @@ tests/test_power_info: tests/test_power_info.o src/power_info.o src/log.o
 tests/test_storage: tests/test_storage.o src/storage_handler.o src/log.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
+tests/test_usb_classification: tests/test_usb_classification.o src/usb_classification.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+
 # Installation
 install: all
 	install -d $(DESTDIR)$(SBINDIR)
@@ -95,11 +93,13 @@ install: all
 	install -d $(DESTDIR)$(HOTSWAPD_CONFIG_DIR)
 	install -d $(DESTDIR)$(DBUS_POLICY_DIR)
 	install -d $(DESTDIR)$(SYSTEMDUNITDIR)
+	install -d $(DESTDIR)$(MANDIR)/man8
 	install -m 0755 $(DAEMON) $(DESTDIR)$(SBINDIR)/$(DAEMON)
 	install -m 0755 $(CLI) $(DESTDIR)$(BINDIR)/$(CLI)
 	install -m 0644 config/modules.json $(DESTDIR)$(HOTSWAPD_CONFIG_DIR)/modules.json
 	install -m 0644 config/hotswapd.conf $(DESTDIR)$(DBUS_POLICY_DIR)/hotswapd.conf
 	install -m 0644 config/hotswapd.service $(DESTDIR)$(SYSTEMDUNITDIR)/hotswapd.service
+	install -m 0644 man/hotswapd.8 $(DESTDIR)$(MANDIR)/man8/hotswapd.8
 
 uninstall:
 	rm -f $(DESTDIR)$(SBINDIR)/$(DAEMON)
@@ -107,3 +107,4 @@ uninstall:
 	rm -f $(DESTDIR)$(HOTSWAPD_CONFIG_DIR)/modules.json
 	rm -f $(DESTDIR)$(DBUS_POLICY_DIR)/hotswapd.conf
 	rm -f $(DESTDIR)$(SYSTEMDUNITDIR)/hotswapd.service
+	rm -f $(DESTDIR)$(MANDIR)/man8/hotswapd.8

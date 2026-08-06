@@ -34,7 +34,7 @@ typedef void (*monitor_attach_cb)(struct hs_device *dev);
  */
 typedef void (*monitor_detach_cb)(const char *devpath, int was_unclean);
 
-/* Lifecycle */
+/* ── Lifecycle ───────────────────────────────────────────────────────────── */
 
 /**
  * Create and initialize the device monitor.

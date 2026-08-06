@@ -7,6 +7,8 @@
  * Signals:
  *   ModuleAttached(s:devpath, s:vid, s:pid, s:name, s:category, u:power, u:speed)
  *   ModuleDetached(s:devpath, s:name, b:was_unclean)
+ *   ModuleReadyForRemoval(s:devpath, s:name)
+ *   ModuleReleaseFailed(s:devpath, s:reason)
  *   PowerChanged(u:total_ma, u:count)
  *
  * Methods:
@@ -28,14 +30,14 @@
 #include <sys/epoll.h>
 #include <unistd.h>
 
-/* Module state */
+/* ── Module state ────────────────────────────────────────────────────────── */
 
 static DBusConnection *g_conn;
 
 /* epoll fd that D-Bus watches are added to (set by dbus_service_setup_epoll) */
 static int g_epoll_fd = -1;
 
-/* D-Bus watch integration for epoll */
+/* ── D-Bus watch integration for epoll ───────────────────────────────────── */
 
 /*
  * libdbus uses a "watch" abstraction for its file descriptors.
@@ -91,7 +93,7 @@ static void watch_toggled(DBusWatch *watch, void *data) {
   }
 }
 
-/* Method handlers */
+/* ── Method handlers ─────────────────────────────────────────────────────── */
 
 /**
  * ListModules() → a(ssssu)
@@ -274,7 +276,7 @@ static DBusMessage *handle_get_total_power_draw(DBusMessage *msg) {
   return reply;
 }
 
-/* Message filter */
+/* ── Message filter ──────────────────────────────────────────────────────── */
 
 DBusHandlerResult dbus_handle_message(DBusConnection *conn, DBusMessage *msg,
                                       void *userdata) {
@@ -314,7 +316,8 @@ DBusHandlerResult dbus_handle_message(DBusConnection *conn, DBusMessage *msg,
   return DBUS_HANDLER_RESULT_HANDLED;
 }
 
-/* Public API - Lifecycle */
+/* ── Public API — Lifecycle ──────────────────────────────────────────────── */
+
 int dbus_service_init(void) {
   DBusError err;
   dbus_error_init(&err);
@@ -373,7 +376,7 @@ void dbus_service_shutdown(void) {
 
 DBusConnection *dbus_service_get_connection(void) { return g_conn; }
 
-/* Signal emission */
+/* ── Signal emission ─────────────────────────────────────────────────────── */
 
 int dbus_emit_module_attached(const struct hs_device *dev) {
   if (!g_conn || !dev) {
@@ -463,7 +466,51 @@ int dbus_emit_power_changed(unsigned int total_draw_ma,
   return 0;
 }
 
-/* epoll integration */
+int dbus_emit_module_ready(const struct hs_device *dev) {
+  if (!g_conn || !dev) {
+    return -1;
+  }
+
+  DBusMessage *sig = dbus_message_new_signal(
+      HOTSWAP_DBUS_OBJECT_PATH, HOTSWAP_DBUS_INTERFACE,
+      "ModuleReadyForRemoval");
+  if (!sig) {
+    return -1;
+  }
+  const char *devpath = dev->devpath;
+  const char *name = dev->product_name[0] ? dev->product_name : "Unknown";
+  dbus_message_append_args(sig, DBUS_TYPE_STRING, &devpath, DBUS_TYPE_STRING,
+                           &name, DBUS_TYPE_INVALID);
+  dbus_connection_send(g_conn, sig, NULL);
+  dbus_connection_flush(g_conn);
+  dbus_message_unref(sig);
+  LOG_INFO("dbus: emitted ModuleReadyForRemoval for %s", devpath);
+  return 0;
+}
+
+int dbus_emit_release_failed(const char *devpath, const char *reason) {
+  if (!g_conn) {
+    return -1;
+  }
+
+  DBusMessage *sig = dbus_message_new_signal(
+      HOTSWAP_DBUS_OBJECT_PATH, HOTSWAP_DBUS_INTERFACE,
+      "ModuleReleaseFailed");
+  if (!sig) {
+    return -1;
+  }
+  const char *path = devpath ? devpath : "";
+  const char *message = reason ? reason : "release preparation failed";
+  dbus_message_append_args(sig, DBUS_TYPE_STRING, &path, DBUS_TYPE_STRING,
+                           &message, DBUS_TYPE_INVALID);
+  dbus_connection_send(g_conn, sig, NULL);
+  dbus_connection_flush(g_conn);
+  dbus_message_unref(sig);
+  LOG_WARN("dbus: emitted ModuleReleaseFailed for %s: %s", path, message);
+  return 0;
+}
+
+/* ── epoll integration ───────────────────────────────────────────────────── */
 
 int dbus_service_setup_epoll(int epoll_fd) {
   if (!g_conn) {

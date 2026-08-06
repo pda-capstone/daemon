@@ -10,12 +10,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Module state */
+/* ── Module state ────────────────────────────────────────────────────────── */
 
 static struct hs_device *g_head;
 static int g_count;
 
-/* Lifecycle */
+/* ── Lifecycle ───────────────────────────────────────────────────────────── */
 
 int state_add(struct hs_device *dev) {
   if (!dev || dev->devpath[0] == '\0') {
@@ -72,7 +72,7 @@ void state_free_all(void) {
   LOG_DEBUG("state_free_all: all devices freed");
 }
 
-/* Queries */
+/* ── Queries ─────────────────────────────────────────────────────────────── */
 
 struct hs_device *state_find(const char *devpath) {
   if (!devpath) {
@@ -103,7 +103,7 @@ unsigned int state_total_power_ma(void) {
   return total;
 }
 
-/* Iteration */
+/* ── Iteration ───────────────────────────────────────────────────────────── */
 
 int state_iterate(state_iterate_cb cb, void *userdata) {
   if (!cb) {
@@ -121,7 +121,7 @@ int state_iterate(state_iterate_cb cb, void *userdata) {
   return 0;
 }
 
-/* Helpers for sync timers */
+/* ── Helpers for sync timers ─────────────────────────────────────────────── */
 
 int state_collect_sync_fds(int *fds, int max_fds) {
   int n = 0;
@@ -146,7 +146,7 @@ struct hs_device *state_find_by_sync_fd(int fd) {
   return NULL;
 }
 
-/* Utility implementations from hotswapd.h */
+/* ── Utility implementations from hotswapd.h ─────────────────────────────── */
 
 const char *category_to_string(enum device_category cat) {
   switch (cat) {

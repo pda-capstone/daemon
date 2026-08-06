@@ -8,7 +8,8 @@
       "description": "USB 2.0 flash drive",
       "on_attach": {
         "action": "mount",
-        "options": "-o flush,noatime"
+        "options": "flush,noatime",
+        "mount_point": "/run/media/hotswapd/{device}"
       },
       "on_detach": {
         "action": "unmount"
@@ -33,7 +34,8 @@
     "storage": {
       "on_attach": {
         "action": "mount",
-        "options": "-o flush,noatime"
+        "options": "noatime",
+        "mount_point": "/run/media/hotswapd/{device}"
       },
       "on_detach": {
         "action": "unmount"
