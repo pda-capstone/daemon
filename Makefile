@@ -86,6 +86,10 @@ tests/test_storage: tests/test_storage.o src/storage_handler.o src/log.o
 tests/test_usb_classification: tests/test_usb_classification.o src/usb_classification.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
+format:
+	clang-format -i $(DAEMON_SRCS) $(CLI_SRCS)
+	find include/ -iname "*.h" | xargs clang-format -i
+
 # Installation
 install: all
 	install -d $(DESTDIR)$(SBINDIR)
