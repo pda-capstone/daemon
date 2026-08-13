@@ -316,8 +316,3 @@ items still require target validation on CM5 or equivalent hardware:
 - D-Bus/systemd behavior on the installed target image
 - GPIO26 rising-edge detection, debounce, and ready/failed indication
 - any accurate per-device USB-C PD reporting
-
-See:
-
-- [artifacts/hotswapd-requirements-traceability.md](/home/aolivier/hotswapd/artifacts/hotswapd-requirements-traceability.md)
-- [artifacts/hotswapd-validation-checklist.md](/home/aolivier/hotswapd/artifacts/hotswapd-validation-checklist.md)
