@@ -8,12 +8,14 @@
 #include "../include/dbus_service.h"
 #include "../include/device_monitor.h"
 #include "../include/device_state.h"
+#include "../include/gpio_release.h"
 #include "../include/log.h"
 #include "../include/module_registry.h"
 #include "../include/storage_handler.h"
 
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,13 +27,15 @@
 #define MAX_EVENTS 16
 #define MAX_SYSTEM_FDS 32
 
-/* Event source types for epoll grouping */
+/* ── Event source types for epoll grouping ───────────────────────────────── */
 
 enum event_source {
   SRC_UDEV,
   SRC_SIGNAL,
   SRC_INOTIFY,
-  SRC_TIMER
+  SRC_GPIO_RELEASE,
+  SRC_ATTACH_TIMER,
+  SRC_SYNC_TIMER
 };
 
 struct main_event_ctx {
@@ -40,7 +44,7 @@ struct main_event_ctx {
   void *data;
 };
 
-/* Global/Static State */
+/* ── Global/Static State ─────────────────────────────────────────────────── */
 
 static int g_epoll_fd = -1;
 static void *g_active_contexts[MAX_SYSTEM_FDS];
@@ -49,8 +53,10 @@ static int g_active_context_count = 0;
 static struct main_event_ctx g_ctx_udev = {SRC_UDEV, -1, NULL};
 static struct main_event_ctx g_ctx_signal = {SRC_SIGNAL, -1, NULL};
 static struct main_event_ctx g_ctx_inotify = {SRC_INOTIFY, -1, NULL};
+static struct main_event_ctx g_ctx_gpio = {SRC_GPIO_RELEASE, -1, NULL};
+static char g_release_devpath_prefix[HOTSWAP_MAX_DEVPATH];
 
-/* Context Registration Helpers */
+/* ── Context Registration Helpers ────────────────────────────────────────── */
 
 static void register_context(void *ctx) {
   if (g_active_context_count < MAX_SYSTEM_FDS) {
@@ -70,7 +76,49 @@ static void unregister_context(void *ctx) {
   }
 }
 
-/* PID File Management */
+static int register_device_fd(enum event_source source, int fd,
+                              struct hs_device *dev) {
+  if (fd < 0 || !dev) {
+    return -1;
+  }
+  struct main_event_ctx *context = malloc(sizeof(*context));
+  if (!context) {
+    return -1;
+  }
+  context->source = source;
+  context->fd = fd;
+  context->data = dev;
+
+  struct epoll_event event;
+  memset(&event, 0, sizeof(event));
+  event.events = EPOLLIN;
+  event.data.ptr = context;
+  if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, fd, &event) != 0) {
+    LOG_ERR("main: failed to add storage fd to epoll: %s", strerror(errno));
+    free(context);
+    return -1;
+  }
+  register_context(context);
+  return 0;
+}
+
+static void remove_device_contexts(struct hs_device *dev) {
+  int index = 0;
+  while (index < g_active_context_count) {
+    struct main_event_ctx *context = g_active_contexts[index];
+    if (context && context->data == dev &&
+        (context->source == SRC_ATTACH_TIMER ||
+         context->source == SRC_SYNC_TIMER)) {
+      epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, context->fd, NULL);
+      unregister_context(context);
+      free(context);
+      continue;
+    }
+    index++;
+  }
+}
+
+/* ── PID File Management ─────────────────────────────────────────────────── */
 
 static void write_pid_file(void) {
   FILE *f = fopen(HOTSWAP_PID_FILE, "w");
@@ -85,7 +133,7 @@ static void write_pid_file(void) {
 
 static void remove_pid_file(void) { unlink(HOTSWAP_PID_FILE); }
 
-/* Device Monitor Callbacks */
+/* ── Device Monitor Callbacks ────────────────────────────────────────────── */
 
 static void on_device_attach(struct hs_device *dev) {
   if (!dev) {
@@ -104,25 +152,11 @@ static void on_device_attach(struct hs_device *dev) {
   /* Handle storage specific initialization (mounting and sync timers) */
   if (dev->category == DEV_CAT_STORAGE) {
     storage_on_attach(dev);
+    if (dev->attach_timer_fd >= 0) {
+      register_device_fd(SRC_ATTACH_TIMER, dev->attach_timer_fd, dev);
+    }
     if (dev->sync_timer_fd >= 0) {
-      struct main_event_ctx *timer_ctx = malloc(sizeof(*timer_ctx));
-      if (timer_ctx) {
-        timer_ctx->source = SRC_TIMER;
-        timer_ctx->fd = dev->sync_timer_fd;
-        timer_ctx->data = dev;
-
-        struct epoll_event ev;
-        memset(&ev, 0, sizeof(ev));
-        ev.events = EPOLLIN;
-        ev.data.ptr = timer_ctx;
-
-        if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, dev->sync_timer_fd, &ev) < 0) {
-          LOG_ERR("main: failed to add timer fd to epoll: %s", strerror(errno));
-          free(timer_ctx);
-        } else {
-          register_context(timer_ctx);
-        }
-      }
+      register_device_fd(SRC_SYNC_TIMER, dev->sync_timer_fd, dev);
     }
   }
 
@@ -143,18 +177,8 @@ static void on_device_detach(const char *devpath, int was_unclean) {
 
   LOG_INFO("main: device detached: %s (unclean=%d)", devpath, was_unclean);
 
-  if (dev->category == DEV_CAT_STORAGE && dev->sync_timer_fd >= 0) {
-    /* Remove from epoll loop and free context */
-    for (int i = 0; i < g_active_context_count; i++) {
-      struct main_event_ctx *ctx = g_active_contexts[i];
-      if (ctx && ctx->source == SRC_TIMER && ctx->fd == dev->sync_timer_fd) {
-        epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, dev->sync_timer_fd, NULL);
-        unregister_context(ctx);
-        free(ctx);
-        break;
-      }
-    }
-
+  if (dev->category == DEV_CAT_STORAGE) {
+    remove_device_contexts(dev);
     int dummy_was_unclean = was_unclean;
     storage_on_detach(dev, &dummy_was_unclean);
   }
@@ -172,6 +196,98 @@ static void on_device_detach(const char *devpath, int was_unclean) {
   free(dev);
 }
 
+struct release_selection {
+  const char *prefix;
+  struct hs_device *only_device;
+  int matched;
+  int failed;
+};
+
+static int release_matches(const struct hs_device *dev, const char *prefix) {
+  if (!dev || dev->state == DEV_STATE_DETACHED) {
+    return 0;
+  }
+  return !prefix || prefix[0] == '\0' ||
+         strncmp(dev->devpath, prefix, strlen(prefix)) == 0;
+}
+
+static int count_release_candidates_cb(const struct hs_device *const_dev,
+                                       void *userdata) {
+  struct release_selection *selection = userdata;
+  if (!release_matches(const_dev, selection->prefix)) {
+    return 0;
+  }
+  selection->matched++;
+  selection->only_device = (struct hs_device *)const_dev;
+  return 0;
+}
+
+static int prepare_release_cb(const struct hs_device *const_dev,
+                              void *userdata) {
+  struct release_selection *selection = userdata;
+  struct hs_device *dev = (struct hs_device *)const_dev;
+  if (!release_matches(dev, selection->prefix)) {
+    return 0;
+  }
+  if (dev->state == DEV_STATE_DETACHING) {
+    dbus_emit_module_ready(dev);
+    return 0;
+  }
+
+  if (dev->category == DEV_CAT_STORAGE) {
+    remove_device_contexts(dev);
+    if (storage_prepare_release(dev) != 0) {
+      selection->failed++;
+      dbus_emit_release_failed(dev->devpath,
+                               "filesystem flush or unmount failed");
+      /* Keep automatic sync policy alive when the module remains mounted. */
+      if (storage_finish_attach(dev) == 0 && dev->sync_timer_fd >= 0) {
+        register_device_fd(SRC_SYNC_TIMER, dev->sync_timer_fd, dev);
+      }
+      return 0;
+    }
+  }
+
+  dev->state = DEV_STATE_DETACHING;
+  LOG_INFO("main: module ready for physical removal: %s", dev->devpath);
+  dbus_emit_module_ready(dev);
+  return 0;
+}
+
+static void handle_gpio_release_trigger(void) {
+  struct release_selection selection;
+  memset(&selection, 0, sizeof(selection));
+  selection.prefix = g_release_devpath_prefix;
+  state_iterate(count_release_candidates_cb, &selection);
+
+  if (selection.matched == 0) {
+    LOG_WARN("gpio: release triggered but no matching module is attached");
+    dbus_emit_release_failed(g_release_devpath_prefix,
+                             "no matching module is attached");
+    return;
+  }
+  if (g_release_devpath_prefix[0] == '\0' && selection.matched != 1) {
+    LOG_WARN("gpio: release is ambiguous with %d attached modules; configure "
+             "--release-devpath-prefix",
+             selection.matched);
+    dbus_emit_release_failed("",
+                             "multiple modules attached; configure a USB "
+                             "DEVPATH prefix for this release contact");
+    return;
+  }
+
+  LOG_INFO("gpio: safe-release contact opened (%d module%s selected)",
+           selection.matched, selection.matched == 1 ? "" : "s");
+  if (g_release_devpath_prefix[0] == '\0') {
+    selection.prefix = selection.only_device->devpath;
+  }
+  state_iterate(prepare_release_cb, &selection);
+  if (selection.failed > 0) {
+    LOG_WARN("gpio: %d selected module(s) are not safe to remove",
+             selection.failed);
+  }
+}
+
 static int shutdown_storage_timers_cb(const struct hs_device *dev,
                                       void *userdata) {
   (void)userdata;
@@ -181,36 +297,77 @@ static int shutdown_storage_timers_cb(const struct hs_device *dev,
   }
 
   storage_stop_sync_timer((struct hs_device *)dev);
+  storage_cancel_attach((struct hs_device *)dev);
   return 0;
 }
 
-/* CLI Usage */
+/* ── CLI Usage ───────────────────────────────────────────────────────────── */
 
 static void print_usage(const char *prog) {
   printf("Usage: %s [options]\n", prog);
   printf("Options:\n");
   printf("  -f          Run in the foreground (do not daemonize)\n");
   printf("  -c <path>   Path to modules.json registry config file\n");
+  printf("  -G <chip>   GPIO chip path, or 'auto' (default: auto)\n");
+  printf("  -L <line>   GPIO line offset (default: 26 / header pin 37)\n");
+  printf("  -P <prefix> USB DEVPATH prefix controlled by the release contact\n");
+  printf("  --no-gpio-release  Disable the GPIO safe-release input\n");
   printf("  -v          Verbose logging output\n");
   printf("  -vv         Debug logging output (very verbose)\n");
   printf("  -h          Print this help message\n");
 }
 
-/* Main Entry Point */
+/* ── Main Entry Point ────────────────────────────────────────────────────── */
 
 int main(int argc, char *argv[]) {
   int foreground = 0;
   int verbosity = 0;
   const char *config_path = HOTSWAP_DEFAULT_REGISTRY_PATH;
+  const char *gpio_chip_path = "auto";
+  unsigned int gpio_line = GPIO_RELEASE_DEFAULT_LINE;
+  int gpio_enabled = 1;
+
+  static const struct option long_options[] = {
+      {"gpio-chip", required_argument, NULL, 'G'},
+      {"gpio-line", required_argument, NULL, 'L'},
+      {"release-devpath-prefix", required_argument, NULL, 'P'},
+      {"no-gpio-release", no_argument, NULL, 1000},
+      {"help", no_argument, NULL, 'h'},
+      {NULL, 0, NULL, 0}};
 
   int opt;
-  while ((opt = getopt(argc, argv, "fc:vvh")) != -1) {
+  while ((opt = getopt_long(argc, argv, "fc:G:L:P:vvh", long_options,
+                            NULL)) != -1) {
     switch (opt) {
     case 'f':
       foreground = 1;
       break;
     case 'c':
       config_path = optarg;
+      break;
+    case 'G':
+      gpio_chip_path = optarg;
+      break;
+    case 'L': {
+      char *end = NULL;
+      unsigned long value = strtoul(optarg, &end, 10);
+      if (!end || end == optarg || *end != '\0' || value > 65535UL) {
+        fprintf(stderr, "Invalid GPIO line offset: %s\n", optarg);
+        return EXIT_FAILURE;
+      }
+      gpio_line = (unsigned int)value;
+      break;
+    }
+    case 'P':
+      if (strlen(optarg) >= sizeof(g_release_devpath_prefix)) {
+        fprintf(stderr, "Release DEVPATH prefix is too long\n");
+        return EXIT_FAILURE;
+      }
+      snprintf(g_release_devpath_prefix, sizeof(g_release_devpath_prefix),
+               "%s", optarg);
+      break;
+    case 1000:
+      gpio_enabled = 0;
       break;
     case 'v':
       verbosity = (verbosity < 1) ? 1 : verbosity;
@@ -283,7 +440,7 @@ int main(int argc, char *argv[]) {
   }
 
   /* 6. Initialize D-Bus Service */
-  if (dbus_service_init() != 0) {
+  if (dbus_service_init(reg) != 0) {
     LOG_ERR("main: failed to initialize D-Bus service");
     registry_free(reg);
     close(sigfd);
@@ -336,6 +493,35 @@ int main(int argc, char *argv[]) {
   }
   register_context(&g_ctx_signal);
 
+  /* GPIO safe release is optional at runtime so development machines and
+   * carrier boards without the release contact can still run the daemon. */
+  struct gpio_release *gpio_release = NULL;
+  if (gpio_enabled) {
+    struct gpio_release_config gpio_config = {
+        .chip_path = gpio_chip_path,
+        .line_offset = gpio_line,
+        .debounce_us = GPIO_RELEASE_DEFAULT_DEBOUNCE_US,
+    };
+    gpio_release = gpio_release_open(&gpio_config);
+    if (!gpio_release) {
+      LOG_WARN("main: GPIO safe release unavailable: %s", strerror(errno));
+    } else {
+      g_ctx_gpio.fd = gpio_release_get_fd(gpio_release);
+      g_ctx_gpio.data = gpio_release;
+      memset(&ev, 0, sizeof(ev));
+      ev.events = EPOLLIN;
+      ev.data.ptr = &g_ctx_gpio;
+      if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, g_ctx_gpio.fd, &ev) != 0) {
+        LOG_WARN("main: failed to add GPIO release input to epoll: %s",
+                 strerror(errno));
+        gpio_release_close(gpio_release);
+        gpio_release = NULL;
+      } else {
+        register_context(&g_ctx_gpio);
+      }
+    }
+  }
+
   /* Register inotify watch fd */
   int inotify_fd = registry_get_inotify_fd(reg);
   if (inotify_fd >= 0) {
@@ -356,6 +542,7 @@ int main(int argc, char *argv[]) {
       monitor_create(reg, on_device_attach, on_device_detach);
   if (!mon) {
     LOG_ERR("main: failed to initialize device monitor");
+    gpio_release_close(gpio_release);
     close(g_epoll_fd);
     dbus_service_shutdown();
     registry_free(reg);
@@ -375,6 +562,7 @@ int main(int argc, char *argv[]) {
     if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, udev_fd, &ev) < 0) {
       LOG_ERR("main: failed to add udev fd to epoll: %s", strerror(errno));
       monitor_destroy(mon);
+      gpio_release_close(gpio_release);
       close(g_epoll_fd);
       dbus_service_shutdown();
       registry_free(reg);
@@ -441,7 +629,28 @@ int main(int argc, char *argv[]) {
           if (registry_handle_inotify_event(reg) == 0) {
             monitor_set_registry(mon, reg);
           }
-        } else if (ctx->source == SRC_TIMER) {
+        } else if (ctx->source == SRC_GPIO_RELEASE) {
+          int triggered = gpio_release_process(
+              (struct gpio_release *)ctx->data);
+          if (triggered > 0) {
+            handle_gpio_release_trigger();
+          } else if (triggered < 0) {
+            LOG_WARN("main: failed to read GPIO release event: %s",
+                     strerror(errno));
+          }
+        } else if (ctx->source == SRC_ATTACH_TIMER) {
+          struct hs_device *dev = (struct hs_device *)ctx->data;
+          int result = storage_handle_attach_timer(dev);
+          if (result != STORAGE_ATTACH_PENDING) {
+            epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, ctx->fd, NULL);
+            unregister_context(ctx);
+            free(ctx);
+            storage_finish_attach(dev);
+            if (dev->sync_timer_fd >= 0) {
+              register_device_fd(SRC_SYNC_TIMER, dev->sync_timer_fd, dev);
+            }
+          }
+        } else if (ctx->source == SRC_SYNC_TIMER) {
           struct hs_device *dev = (struct hs_device *)ctx->data;
           storage_handle_sync_timer(dev);
         }
@@ -474,6 +683,8 @@ int main(int argc, char *argv[]) {
 
   dbus_service_shutdown();
 
+  gpio_release_close(gpio_release);
+
   close(sigfd);
 
   if (reg) {
@@ -482,10 +693,11 @@ int main(int argc, char *argv[]) {
 
   state_iterate(shutdown_storage_timers_cb, NULL);
 
-  /* Free remaining dynamic contexts (SRC_TIMER) */
+  /* Free remaining dynamic storage timer contexts. */
   for (int i = 0; i < g_active_context_count; i++) {
     struct main_event_ctx *ctx = g_active_contexts[i];
-    if (ctx && ctx->source == SRC_TIMER) {
+    if (ctx && (ctx->source == SRC_ATTACH_TIMER ||
+                ctx->source == SRC_SYNC_TIMER)) {
       free(ctx);
     }
   }

@@ -1,9 +1,11 @@
 #include "../include/module_registry.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static int failures = 0;
@@ -61,6 +63,11 @@ int main(void) {
             "      \"product_id\": \"5567\",\n"
             "      \"name\": \"SanDisk Cruzer Blade\",\n"
             "      \"category\": \"storage\",\n"
+            "      \"on_attach\": {\n"
+            "        \"action\": \"mount\",\n"
+            "        \"options\": \"flush,noatime\",\n"
+            "        \"mount_point\": \"/mnt/{device}\"\n"
+            "      },\n"
             "      \"sync_policy\": {\n"
             "        \"mode\": \"periodic\",\n"
             "        \"idle_sync_delay\": 7,\n"
@@ -88,6 +95,14 @@ int main(void) {
     CHECK(info && strcmp(info->name, "SanDisk Cruzer Blade") == 0,
           "module name loaded");
     CHECK(info && info->has_sync_policy == 1, "module sync policy marked");
+    CHECK(info && info->on_attach.has_action == 1,
+          "module attach action marked");
+    CHECK(info && strcmp(info->on_attach.action, "mount") == 0,
+          "module mount action loaded");
+    CHECK(info && strcmp(info->on_attach.options, "flush,noatime") == 0,
+          "module mount options loaded");
+    CHECK(info && strcmp(info->on_attach.mount_point, "/mnt/{device}") == 0,
+          "module mount point loaded");
     CHECK(info && info->sync_policy.mode == SYNC_MODE_PERIODIC,
           "exact module sync mode");
 
@@ -95,6 +110,77 @@ int main(void) {
     CHECK(policy != NULL, "category default lookup");
     CHECK(policy && policy->mode == SYNC_MODE_IDLE, "default sync mode");
     CHECK(policy && policy->idle_sync_delay_s == 5, "default idle delay");
+
+    {
+      struct hs_device dev;
+      memset(&dev, 0, sizeof(dev));
+      memcpy(dev.vendor_id, "abcd", 5);
+      memcpy(dev.product_id, "1234", 5);
+      memcpy(dev.product_name, "Connected Test Drive", 21);
+      dev.category = DEV_CAT_STORAGE;
+
+      CHECK(chmod(path, 0640) == 0, "set registry permissions");
+
+      int was_replaced = -1;
+      CHECK(registry_register_device(reg, &dev, NULL, "Test description", 0,
+                                     &was_replaced) == 0,
+            "register connected device");
+      CHECK(was_replaced == 0, "new registration reports added");
+      CHECK(registry_count(reg) == 2, "registration increases registry count");
+      info = registry_lookup(reg, "abcd", "1234");
+      CHECK(info != NULL, "registered module can be looked up");
+      CHECK(info && strcmp(info->name, "Connected Test Drive") == 0,
+            "registration uses connected product name");
+      CHECK(info && strcmp(info->description, "Test description") == 0,
+            "registration stores description override");
+      CHECK(registry_get(reg, 1) == info, "registry indexed access");
+
+      struct stat status;
+      CHECK(stat(path, &status) == 0, "stat updated registry");
+      CHECK((status.st_mode & 07777) == 0640,
+            "atomic replacement preserves registry permissions");
+      policy = registry_default_sync(reg, DEV_CAT_STORAGE);
+      CHECK(policy && policy->idle_sync_delay_s == 5,
+            "registration preserves defaults section");
+
+      errno = 0;
+      CHECK(registry_register_device(reg, &dev, NULL, NULL, 0, NULL) != 0 &&
+                errno == EEXIST,
+            "duplicate registration requires replace");
+
+      CHECK(registry_register_device(reg, &dev, "Updated Test Drive", NULL, 1,
+                                     &was_replaced) == 0,
+            "replace existing registration");
+      CHECK(was_replaced == 1, "replacement reports updated");
+      info = registry_lookup(reg, "abcd", "1234");
+      CHECK(info && strcmp(info->name, "Updated Test Drive") == 0,
+            "replacement updates name");
+      CHECK(info && strcmp(info->description, "Test description") == 0,
+            "replacement without description preserves description");
+      CHECK(registry_count(reg) == 2,
+            "replacement does not duplicate registry entry");
+
+      dev.category = DEV_CAT_UNKNOWN;
+      errno = 0;
+      CHECK(registry_register_device(reg, &dev, NULL, NULL, 1, NULL) != 0 &&
+                errno == EINVAL,
+            "unknown category is rejected");
+
+      memset(&dev, 0, sizeof(dev));
+      memcpy(dev.vendor_id, "0781", 5);
+      memcpy(dev.product_id, "5567", 5);
+      memcpy(dev.product_name, "Renamed Existing Drive", 23);
+      dev.category = DEV_CAT_STORAGE;
+      CHECK(registry_register_device(reg, &dev, NULL, NULL, 1, NULL) == 0,
+            "replace definition containing policy fields");
+      info = registry_lookup(reg, "0781", "5567");
+      CHECK(info && info->on_attach.has_action == 1 &&
+                strcmp(info->on_attach.action, "mount") == 0,
+            "replacement preserves per-device action");
+      CHECK(info && info->has_sync_policy == 1 &&
+                info->sync_policy.mode == SYNC_MODE_PERIODIC,
+            "replacement preserves per-device sync policy");
+    }
 
     CHECK(write_file(
               path,

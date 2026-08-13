@@ -1,0 +1,143 @@
+.TH HOTSWAPD 8 "August 2026" "hotswapd 0.2.0" "System Administration"
+.SH NAME
+hotswapd \- monitor and manage USB hot-swap modules
+.SH SYNOPSIS
+.B hotswapd
+.RB [ \-f ]
+.RB [ \-c
+.IR registry ]
+.RB [ \-G
+.IR gpiochip ]
+.RB [ \-L
+.IR line ]
+.RB [ \-P
+.IR devpath-prefix ]
+.RB [ \-\-no-gpio-release ]
+.RB [ \-v | \-vv ]
+.SH DESCRIPTION
+.B hotswapd
+is a user-space daemon that monitors USB device attach and detach events,
+maintains module state, applies configured removable-storage policy, and
+publishes state through the system D-Bus service
+.BR org.postmarketos.HotSwap .
+.PP
+The systemd service runs the daemon in the foreground with
+.BR \-f .
+Without that option, the process daemonizes itself.
+.SH OPTIONS
+.TP
+.B \-f
+Remain in the foreground and write logs to standard error.
+.TP
+.BI \-c " registry"
+Read module definitions from
+.I registry
+instead of the default
+.IR /etc/hotswapd/modules.json .
+.TP
+.BI \-G " gpiochip"
+Use the specified GPIO character device, or
+.B auto
+to locate the Raspberry Pi controller. The default is
+.BR auto .
+.TP
+.BI \-L " line"
+Use the specified GPIO line offset. The default is GPIO26, physical header pin
+37 on the CM5 IO Board.
+.TP
+.BI \-P " devpath-prefix"
+Associate the release contact with devices below this USB DEVPATH prefix. This
+is required when more than one module is attached.
+.TP
+.B \-\-no-gpio-release
+Disable GPIO safe-release monitoring.
+.TP
+.B \-v
+Enable verbose logging.
+.TP
+.B \-vv
+Enable debug logging.
+.TP
+.B \-h
+Print command-line help and exit.
+.SH CONFIGURATION
+The JSON registry maps USB vendor and product identifiers to categories,
+attach and detach actions, and storage sync policy. A storage
+.B mount
+action may specify
+.B options
+and a
+.B mount_point
+whose
+.B {device}
+token expands to the selected block-device basename.
+.SH GPIO SAFE RELEASE
+Install a removable jumper or normally-closed release contact between physical
+header pin 37 (GPIO26) and pin 39 (ground). The line is requested as an input
+with a pull-up, rising-edge detection, and 50 ms debounce. The installed
+contact holds the input low; opening it lets the pull-up drive the input high
+and triggers release. Set the CM5 IO Board GPIO-voltage selector to 3.3 V for
+normal HAT-header use, and do not connect the input to 5 V.
+.PP
+When opened, the daemon flushes and normally unmounts storage for the selected
+module before marking it ready. Listen for the
+.B ModuleReadyForRemoval
+D-Bus signal before removing it. A
+.B ModuleReleaseFailed
+signal means removal is not safe. The contact does not itself enforce a delay;
+the enclosure should prevent or discourage removal until ready indication is
+visible.
+.SH CLIENT COMMANDS
+The
+.B hsctl
+client can inspect attached devices and the module registry:
+.PP
+.EX
+hsctl list
+hsctl registry
+.EE
+.PP
+To register the VID/PID and inferred category of a currently attached device,
+pass the DEVPATH reported by
+.BR "hsctl list" :
+.PP
+.EX
+sudo hsctl register <devpath>
+sudo hsctl register <devpath> --replace
+.EE
+.PP
+The optional
+.BR --name ,
+.BR --category ,
+and
+.B --description
+arguments override detected metadata. Registration is restricted to root
+callers by both D-Bus policy and a daemon-side UID check. The daemon locks and
+atomically updates the registry; a new definition normally applies on the
+device's next attachment.
+.SH FILES
+.TP
+.I /etc/hotswapd/modules.json
+Default module registry.
+.TP
+.I /etc/dbus-1/system.d/hotswapd.conf
+System D-Bus policy.
+.TP
+.I /usr/lib/systemd/system/hotswapd.service
+systemd service unit.
+.TP
+.I /run/hotswapd.pid
+PID file used while the daemon is running.
+.SH EXIT STATUS
+The daemon exits with status 0 after an orderly shutdown or after displaying
+help. Initialization, configuration, and unrecoverable event-loop failures
+produce a nonzero status.
+.SH LOGGING
+Foreground mode logs to standard error. Daemon mode logs through syslog;
+under systemd, messages are available with
+.BR journalctl (1).
+.SH SEE ALSO
+.BR systemctl (1),
+.BR journalctl (1),
+.BR udev (7),
+.BR dbus-daemon (1)

@@ -14,15 +14,20 @@
 #include "../include/module_registry.h"
 #include "../include/log.h"
 
+#include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
 #include <sys/inotify.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <json-c/json.h>
 
-/* Internal types */
+/* ── Internal types ──────────────────────────────────────────────────────── */
 
 /* Per-category defaults */
 struct category_defaults {
@@ -51,7 +56,7 @@ struct module_registry {
     int watch_fd;
 };
 
-/* Helpers */
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 
 /**
  * Safely copy a JSON string value into a fixed-size buffer.
@@ -77,7 +82,8 @@ static void json_strcpy(char *dst, size_t dstlen,
 }
 
 /**
- * Parse an action object: { "action": "mount", "options": "-o flush" }
+ * Parse an action object. mount_point is optional and may contain {device},
+ * which is expanded to the selected block-device basename at attach time.
  */
 static void parse_action(struct json_object *obj, struct module_action *act)
 {
@@ -88,6 +94,8 @@ static void parse_action(struct json_object *obj, struct module_action *act)
 
     json_strcpy(act->action, sizeof(act->action), obj, "action");
     json_strcpy(act->options, sizeof(act->options), obj, "options");
+    json_strcpy(act->mount_point, sizeof(act->mount_point), obj,
+                "mount_point");
     act->has_action = (act->action[0] != '\0') ? 1 : 0;
 }
 
@@ -353,7 +361,7 @@ static int registry_setup_watch(struct module_registry *reg)
     return 0;
 }
 
-/* Public API - Lifecycle */
+/* ── Public API — Lifecycle ──────────────────────────────────────────────── */
 
 struct module_registry *registry_load(const char *path)
 {
@@ -428,7 +436,7 @@ void registry_free(struct module_registry *reg)
     free(reg);
 }
 
-/* Public API - Lookup */
+/* ── Public API — Lookup ─────────────────────────────────────────────────── */
 
 const struct module_info *registry_lookup(const struct module_registry *reg,
                                           const char *vendor_id,
@@ -446,6 +454,281 @@ const struct module_info *registry_lookup(const struct module_registry *reg,
     }
 
     return NULL;
+}
+
+const struct module_info *registry_get(const struct module_registry *reg,
+                                       int index)
+{
+    if (!reg || index < 0 || index >= reg->count) {
+        return NULL;
+    }
+    return &reg->modules[index];
+}
+
+static int usb_id_is_valid(const char *id)
+{
+    if (!id || strlen(id) != 4) {
+        return 0;
+    }
+    for (size_t i = 0; i < 4; i++) {
+        if (!isxdigit((unsigned char)id[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int write_all(int fd, const char *data, size_t length)
+{
+    size_t offset = 0;
+    while (offset < length) {
+        ssize_t written = write(fd, data + offset, length - offset);
+        if (written < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        if (written == 0) {
+            errno = EIO;
+            return -1;
+        }
+        offset += (size_t)written;
+    }
+    return 0;
+}
+
+static struct json_object *find_module_object(struct json_object *modules,
+                                               const char *vendor_id,
+                                               const char *product_id)
+{
+    size_t count = json_object_array_length(modules);
+    for (size_t i = 0; i < count; i++) {
+        struct json_object *entry = json_object_array_get_idx(modules, i);
+        struct json_object *vendor_obj = NULL;
+        struct json_object *product_obj = NULL;
+        if (!entry || !json_object_is_type(entry, json_type_object) ||
+            !json_object_object_get_ex(entry, "vendor_id", &vendor_obj) ||
+            !json_object_object_get_ex(entry, "product_id", &product_obj)) {
+            continue;
+        }
+        const char *entry_vendor = json_object_get_string(vendor_obj);
+        const char *entry_product = json_object_get_string(product_obj);
+        if (entry_vendor && entry_product &&
+            strcmp(entry_vendor, vendor_id) == 0 &&
+            strcmp(entry_product, product_id) == 0) {
+            return entry;
+        }
+    }
+    return NULL;
+}
+
+static int write_registry_atomically(struct module_registry *reg,
+                                     struct json_object *root,
+                                     const struct stat *original_status)
+{
+    char temporary[PATH_MAX];
+    int length = snprintf(temporary, sizeof(temporary), "%s.tmp.XXXXXX",
+                          reg->path);
+    if (length < 0 || (size_t)length >= sizeof(temporary)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+
+    int fd = mkstemp(temporary);
+    if (fd < 0) {
+        return -1;
+    }
+
+    int result = -1;
+    const char *serialized =
+        json_object_to_json_string_ext(root, JSON_C_TO_STRING_PRETTY);
+    if (!serialized) {
+        errno = EIO;
+        goto done;
+    }
+    if (fchown(fd, original_status->st_uid, original_status->st_gid) != 0 ||
+        fchmod(fd, original_status->st_mode & 07777) != 0 ||
+        write_all(fd, serialized, strlen(serialized)) != 0 ||
+        write_all(fd, "\n", 1) != 0 || fsync(fd) != 0) {
+        goto done;
+    }
+    if (close(fd) != 0) {
+        fd = -1;
+        goto done;
+    }
+    fd = -1;
+
+    /* Reparse the completed temporary file before it can replace the live
+     * registry. The object was constructed in memory, but this also verifies
+     * the exact serialized bytes that will be installed. */
+    struct json_object *verification = json_object_from_file(temporary);
+    if (!verification) {
+        errno = EINVAL;
+        goto done;
+    }
+    struct json_object *modules = NULL;
+    int valid = json_object_is_type(verification, json_type_object) &&
+                json_object_object_get_ex(verification, "modules", &modules) &&
+                json_object_is_type(modules, json_type_array);
+    json_object_put(verification);
+    if (!valid) {
+        errno = EINVAL;
+        goto done;
+    }
+
+    if (rename(temporary, reg->path) != 0) {
+        goto done;
+    }
+    temporary[0] = '\0';
+
+    int directory_fd = open(reg->watch_dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (directory_fd >= 0) {
+        if (fsync(directory_fd) != 0) {
+            LOG_WARN("registry: directory sync failed after registration: %s",
+                     strerror(errno));
+        }
+        close(directory_fd);
+    }
+    result = 0;
+
+done:
+    {
+        int saved_errno = errno;
+        if (fd >= 0) {
+            close(fd);
+        }
+        if (temporary[0] != '\0') {
+            unlink(temporary);
+        }
+        errno = saved_errno;
+    }
+    return result;
+}
+
+int registry_register_device(struct module_registry *reg,
+                             const struct hs_device *dev,
+                             const char *name_override,
+                             const char *description, int replace,
+                             int *was_replaced)
+{
+    if (was_replaced) {
+        *was_replaced = 0;
+    }
+    if (!reg || !dev || !usb_id_is_valid(dev->vendor_id) ||
+        !usb_id_is_valid(dev->product_id) || dev->category <= DEV_CAT_UNKNOWN ||
+        dev->category >= DEV_CAT_COUNT ||
+        (name_override && strlen(name_override) >= HOTSWAP_MAX_NAME) ||
+        (description &&
+         strlen(description) >=
+             sizeof(((struct module_info *)0)->description))) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    char lock_path[PATH_MAX];
+    int length = snprintf(lock_path, sizeof(lock_path), "%s.lock", reg->path);
+    if (length < 0 || (size_t)length >= sizeof(lock_path)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    int lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+    if (lock_fd < 0) {
+        return -1;
+    }
+    if (flock(lock_fd, LOCK_EX) != 0) {
+        int saved_errno = errno;
+        close(lock_fd);
+        errno = saved_errno;
+        return -1;
+    }
+
+    int result = -1;
+    struct stat file_status;
+    if (stat(reg->path, &file_status) != 0) {
+        goto done;
+    }
+
+    struct json_object *root = json_object_from_file(reg->path);
+    if (!root) {
+        errno = EINVAL;
+        goto done;
+    }
+    struct json_object *modules = NULL;
+    if (!json_object_is_type(root, json_type_object) ||
+        !json_object_object_get_ex(root, "modules", &modules) ||
+        !json_object_is_type(modules, json_type_array)) {
+        json_object_put(root);
+        errno = EINVAL;
+        goto done;
+    }
+
+    struct json_object *entry = find_module_object(
+        modules, dev->vendor_id, dev->product_id);
+    int replacing = entry != NULL;
+    if (replacing && !replace) {
+        json_object_put(root);
+        errno = EEXIST;
+        goto done;
+    }
+    if (!entry) {
+        entry = json_object_new_object();
+        if (!entry || json_object_array_add(modules, entry) != 0) {
+            if (entry) {
+                json_object_put(entry);
+            }
+            json_object_put(root);
+            errno = ENOMEM;
+            goto done;
+        }
+    }
+
+    const char *name = name_override && name_override[0] ? name_override :
+                       (dev->product_name[0] ? dev->product_name :
+                        (dev->vendor_name[0] ? dev->vendor_name : "USB module"));
+    json_object_object_add(entry, "vendor_id",
+                           json_object_new_string(dev->vendor_id));
+    json_object_object_add(entry, "product_id",
+                           json_object_new_string(dev->product_id));
+    json_object_object_add(entry, "name", json_object_new_string(name));
+    json_object_object_add(entry, "category",
+                           json_object_new_string(
+                               category_to_string(dev->category)));
+    if (description && description[0]) {
+        json_object_object_add(entry, "description",
+                               json_object_new_string(description));
+    } else if (!replacing) {
+        json_object_object_add(
+            entry, "description",
+            json_object_new_string("Registered from a connected USB device"));
+    }
+
+    if (write_registry_atomically(reg, root, &file_status) != 0) {
+        json_object_put(root);
+        goto done;
+    }
+    json_object_put(root);
+
+    if (registry_reload(reg) != 0) {
+        errno = EIO;
+        goto done;
+    }
+    if (was_replaced) {
+        *was_replaced = replacing;
+    }
+    LOG_INFO("registry: %s %s:%s (%s)",
+             replacing ? "updated" : "registered", dev->vendor_id,
+             dev->product_id, name);
+    result = 0;
+
+done:
+    {
+        int saved_errno = errno;
+        flock(lock_fd, LOCK_UN);
+        close(lock_fd);
+        errno = saved_errno;
+    }
+    return result;
 }
 
 const struct module_action *registry_default_attach(
@@ -477,7 +760,7 @@ const struct module_sync_policy *registry_default_sync(
     return &reg->defaults[cat].sync_policy;
 }
 
-/* Public API - inotify */
+/* ── Public API — inotify ────────────────────────────────────────────────── */
 
 int registry_get_inotify_fd(const struct module_registry *reg)
 {
@@ -532,7 +815,7 @@ int registry_handle_inotify_event(struct module_registry *reg)
     return registry_reload(reg);
 }
 
-/* Public API - Introspection */
+/* ── Public API — Introspection ──────────────────────────────────────────── */
 
 int registry_count(const struct module_registry *reg)
 {

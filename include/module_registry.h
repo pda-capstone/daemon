@@ -21,21 +21,16 @@
 #define STORAGE_DEFAULT_IDLE_SYNC_DELAY_S 5
 #define STORAGE_DEFAULT_FALLBACK_SYNC_INTERVAL_S 60
 
+/* ── Per-module sync policy (overrides global default) ───────────────────── */
+
 struct module_sync_policy {
     enum sync_mode mode;
     int idle_sync_delay_s;       /* seconds of idle before sync (mode=idle) */
     int fallback_sync_interval_s;/* periodic fallback interval (mode=idle) */
 };
 
-// Action to take on attach/detach
+/* ── Module definition ───────────────────────────────────────────────────── */
 
-struct module_action {
-    int  has_action;
-    char action[32];             /* "mount", "unmount", "none"              */
-    char options[256];           /* e.g. "-o flush,noatime"                 */
-};
-
-// Module Definition
 struct module_info {
     char vendor_id[HOTSWAP_MAX_ID];
     char product_id[HOTSWAP_MAX_ID];
@@ -50,11 +45,11 @@ struct module_info {
     struct module_sync_policy sync_policy;
 };
 
-/* Registry handle (opaque to callers) */
+/* ── Registry handle (opaque to callers) ─────────────────────────────────── */
 
 struct module_registry;
 
-// Lifecycle
+/* ── Lifecycle ───────────────────────────────────────────────────────────── */
 
 /**
  * Load the module registry from a JSON file.
@@ -77,7 +72,7 @@ int registry_reload(struct module_registry *reg);
  */
 void registry_free(struct module_registry *reg);
 
-/* Lookup */
+/* ── Lookup ──────────────────────────────────────────────────────────────── */
 
 /**
  * Look up a module by vendor/product ID.
@@ -89,6 +84,37 @@ void registry_free(struct module_registry *reg);
 const struct module_info *registry_lookup(const struct module_registry *reg,
                                           const char *vendor_id,
                                           const char *product_id);
+
+/**
+ * Return a registry entry by zero-based index.
+ *
+ * The pointer remains valid until the next reload, registration, or free.
+ */
+const struct module_info *registry_get(const struct module_registry *reg,
+                                       int index);
+
+/**
+ * Add the identity of a currently connected device to the JSON registry.
+ * Existing per-device actions, descriptions, and sync policy are preserved
+ * when replace is non-zero.
+ *
+ * The update is locked, written to a same-directory temporary file, synced,
+ * atomically renamed, and reloaded into the active registry.
+ *
+ * @param reg           Active registry.
+ * @param dev           Currently tracked device to register.
+ * @param name          Optional display-name override; NULL/empty uses device.
+ * @param description   Optional description; NULL/empty preserves an existing
+ *                      description or supplies a default for a new entry.
+ * @param replace       Permit updating an existing VID/PID entry.
+ * @param was_replaced  Optional output set to 1 for replacement, 0 for add.
+ * @return 0 on success, -1 on failure with errno set. EEXIST means that an
+ *         entry already exists and replace was not requested.
+ */
+int registry_register_device(struct module_registry *reg,
+                             const struct hs_device *dev, const char *name,
+                             const char *description, int replace,
+                             int *was_replaced);
 
 /**
  * Get the default action for a category (from the "defaults" section).
@@ -107,7 +133,7 @@ const struct module_action *registry_default_detach(
 const struct module_sync_policy *registry_default_sync(
     const struct module_registry *reg, enum device_category cat);
 
-/* inotify integration */
+/* ── inotify integration ─────────────────────────────────────────────────── */
 
 /**
  * Get the inotify file descriptor for the registry watch.
@@ -126,7 +152,7 @@ int registry_get_inotify_fd(const struct module_registry *reg);
  */
 int registry_handle_inotify_event(struct module_registry *reg);
 
-/* Introspection (for hsctl / debugging) */
+/* ── Introspection (for hsctl / debugging) ───────────────────────────────── */
 
 /**
  * Get the number of module definitions loaded.
