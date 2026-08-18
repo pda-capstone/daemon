@@ -46,7 +46,7 @@ Use the specified GPIO line offset. The default is GPIO26, physical header pin
 37 on the CM5 IO Board.
 .TP
 .BI \-P " devpath-prefix"
-Associate the release switch with devices below this USB DEVPATH prefix. This
+Associate the release contact with devices below this USB DEVPATH prefix. This
 is required when more than one module is attached.
 .TP
 .B \-\-no-gpio-release
@@ -72,19 +72,49 @@ whose
 .B {device}
 token expands to the selected block-device basename.
 .SH GPIO SAFE RELEASE
-Connect a normally-open switch between physical header pin 37 (GPIO26) and pin
-39 (ground). The line is requested as an input with a pull-up, falling-edge
-detection, and 50 ms debounce. Set the CM5 IO Board GPIO-voltage selector to
-3.3 V for normal HAT-header use, and do not connect the input to 5 V.
+Install a removable jumper or normally-closed release contact between physical
+header pin 37 (GPIO26) and pin 39 (ground). The line is requested as an input
+with a pull-up, rising-edge detection, and 50 ms debounce. The installed
+contact holds the input low; opening it lets the pull-up drive the input high
+and triggers release. Set the CM5 IO Board GPIO-voltage selector to 3.3 V for
+normal HAT-header use, and do not connect the input to 5 V.
 .PP
-When pressed, the daemon flushes and normally unmounts storage for the selected
+When opened, the daemon flushes and normally unmounts storage for the selected
 module before marking it ready. Listen for the
 .B ModuleReadyForRemoval
 D-Bus signal before removing it. A
 .B ModuleReleaseFailed
-signal means removal is not safe. The switch does not itself enforce a delay;
+signal means removal is not safe. The contact does not itself enforce a delay;
 the enclosure should prevent or discourage removal until ready indication is
 visible.
+.SH CLIENT COMMANDS
+The
+.B hsctl
+client can inspect attached devices and the module registry:
+.PP
+.EX
+hsctl list
+hsctl registry
+.EE
+.PP
+To register the VID/PID and inferred category of a currently attached device,
+pass the DEVPATH reported by
+.BR "hsctl list" :
+.PP
+.EX
+sudo hsctl register <devpath>
+sudo hsctl register <devpath> --replace
+.EE
+.PP
+The optional
+.BR --name ,
+.BR --category ,
+and
+.B --description
+arguments override detected metadata. Registration is restricted to root
+callers by both D-Bus policy and a daemon-side UID check. The daemon locks and
+atomically updates the registry; a new definition normally applies on the
+device's next attachment.
 .SH FILES
 .TP
 .I /etc/hotswapd/modules.json

@@ -1,5 +1,5 @@
 /*
- * gpio_release.h — Active-low GPIO safe-release switch.
+ * gpio_release.h — Rising-edge GPIO safe-release contact.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -21,7 +21,9 @@ struct gpio_release_config {
 };
 
 /**
- * Request an active-low input line with a pull-up and falling-edge events.
+ * Request an input line with a pull-up and rising-edge events. The release
+ * contact normally holds the line low; opening it lets the pull-up drive the
+ * line high and triggers safe release.
  *
  * The implementation uses the Linux GPIO character-device v2 API directly,
  * so the daemon does not depend on the deprecated sysfs GPIO interface.
@@ -35,7 +37,7 @@ int gpio_release_get_fd(const struct gpio_release *release);
 /**
  * Drain pending edge events.
  *
- * @return 1 when a debounced press was observed, 0 when all events were
+ * @return 1 when a debounced rising edge was observed, 0 when all events were
  *         ignored as bounce, or -1 on error.
  */
 int gpio_release_process(struct gpio_release *release);

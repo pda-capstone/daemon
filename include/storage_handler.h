@@ -95,7 +95,7 @@ int storage_on_detach(struct hs_device *dev, int *was_unclean);
 
 /**
  * Flush and normally unmount all filesystems for a still-connected module.
- * This is called when its physical release switch is pressed, before the USB
+ * This is called when its physical release contact opens, before the USB
  * connector is removed.
  *
  * @return 0 only when every current mount is safely unmounted; -1 otherwise.

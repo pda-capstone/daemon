@@ -86,6 +86,37 @@ const struct module_info *registry_lookup(const struct module_registry *reg,
                                           const char *product_id);
 
 /**
+ * Return a registry entry by zero-based index.
+ *
+ * The pointer remains valid until the next reload, registration, or free.
+ */
+const struct module_info *registry_get(const struct module_registry *reg,
+                                       int index);
+
+/**
+ * Add the identity of a currently connected device to the JSON registry.
+ * Existing per-device actions, descriptions, and sync policy are preserved
+ * when replace is non-zero.
+ *
+ * The update is locked, written to a same-directory temporary file, synced,
+ * atomically renamed, and reloaded into the active registry.
+ *
+ * @param reg           Active registry.
+ * @param dev           Currently tracked device to register.
+ * @param name          Optional display-name override; NULL/empty uses device.
+ * @param description   Optional description; NULL/empty preserves an existing
+ *                      description or supplies a default for a new entry.
+ * @param replace       Permit updating an existing VID/PID entry.
+ * @param was_replaced  Optional output set to 1 for replacement, 0 for add.
+ * @return 0 on success, -1 on failure with errno set. EEXIST means that an
+ *         entry already exists and replace was not requested.
+ */
+int registry_register_device(struct module_registry *reg,
+                             const struct hs_device *dev, const char *name,
+                             const char *description, int replace,
+                             int *was_replaced);
+
+/**
  * Get the default action for a category (from the "defaults" section).
  * Returns NULL if no default is defined for this category.
  */

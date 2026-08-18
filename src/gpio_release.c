@@ -5,6 +5,9 @@
  */
 
 #include "../include/gpio_release.h"
+#ifdef HOTSWAPD_TESTING
+#include "../include/gpio_release_internal.h"
+#endif
 #include "../include/log.h"
 
 #include <errno.h>
@@ -24,11 +27,27 @@
 struct gpio_release {
   int event_fd;
   unsigned int debounce_us;
-  uint64_t last_press_ns;
+  uint64_t last_trigger_ns;
   char chip_path[128];
 };
 
 #if defined(__linux__) && defined(GPIO_V2_GET_LINE_IOCTL)
+
+static int chip_identity_score(const char *chip_label, const char *line_name,
+                               const char *expected_name) {
+  int score = 0;
+  if (chip_label && strstr(chip_label, "pinctrl-rp1") != NULL) {
+    /* The 40-pin header is driven by RP1 on CM5. Keep this preference higher
+     * than a perfectly named line on the BCM2712 controller. */
+    score = 8;
+  } else if (chip_label && strstr(chip_label, "pinctrl-bcm") != NULL) {
+    score = 4;
+  }
+  if (line_name && expected_name && strcmp(line_name, expected_name) == 0) {
+    score += 2;
+  }
+  return score;
+}
 
 static int chip_match_score(int fd, unsigned int offset,
                             const char *expected_name) {
@@ -39,26 +58,27 @@ static int chip_match_score(int fd, unsigned int offset,
     return 0;
   }
 
-  int score = 0;
-  if (strstr(chip_info.label, "pinctrl-rp1") != NULL) {
-    score = 4;
-  } else if (strstr(chip_info.label, "pinctrl-bcm") != NULL) {
-    score = 2;
-  }
-
   struct gpio_v2_line_info line_info;
   memset(&line_info, 0, sizeof(line_info));
   line_info.offset = offset;
-  if (ioctl(fd, (int)GPIO_V2_GET_LINEINFO_IOCTL, &line_info) == 0 &&
-      strcmp(line_info.name, expected_name) == 0) {
-    score += 2;
+  if (ioctl(fd, (int)GPIO_V2_GET_LINEINFO_IOCTL, &line_info) != 0) {
+    line_info.name[0] = '\0';
   }
 
   /* Prefer RP1 over the BCM2712's own GPIO controller on CM5. Individual
    * line names add confidence, while the constrained label fallback supports
    * images that omit them. */
-  return score;
+  return chip_identity_score(chip_info.label, line_info.name, expected_name);
 }
+
+#ifdef HOTSWAPD_TESTING
+int gpio_release_test_chip_score(const char *chip_label, const char *line_name,
+                                 unsigned int line_offset) {
+  char expected_name[GPIO_MAX_NAME_SIZE];
+  snprintf(expected_name, sizeof(expected_name), "GPIO%u", line_offset);
+  return chip_identity_score(chip_label, line_name, expected_name);
+}
+#endif
 
 static int open_auto_chip(unsigned int offset, char *resolved,
                           size_t resolved_size) {
@@ -115,7 +135,7 @@ static int request_line(int chip_fd, unsigned int offset,
   request.event_buffer_size = 16;
   snprintf(request.consumer, sizeof(request.consumer), "hotswapd-release");
   request.config.flags = GPIO_V2_LINE_FLAG_INPUT |
-                         GPIO_V2_LINE_FLAG_EDGE_FALLING |
+                         GPIO_V2_LINE_FLAG_EDGE_RISING |
                          GPIO_V2_LINE_FLAG_BIAS_PULL_UP;
 
   if (debounce_us > 0) {
@@ -199,7 +219,7 @@ int gpio_release_process(struct gpio_release *release) {
     return -1;
   }
 
-  int pressed = 0;
+  int triggered = 0;
   for (;;) {
     struct gpio_v2_line_event event;
     ssize_t count = read(release->event_fd, &event, sizeof(event));
@@ -213,20 +233,44 @@ int gpio_release_process(struct gpio_release *release) {
       errno = EIO;
       return -1;
     }
-    if (event.id != GPIO_V2_LINE_EVENT_FALLING_EDGE) {
+    if (event.id != GPIO_V2_LINE_EVENT_RISING_EDGE) {
       continue;
     }
 
     uint64_t debounce_ns = (uint64_t)release->debounce_us * 1000ULL;
-    if (release->last_press_ns != 0 &&
-        event.timestamp_ns - release->last_press_ns < debounce_ns) {
+    if (release->last_trigger_ns != 0 &&
+        event.timestamp_ns - release->last_trigger_ns < debounce_ns) {
       continue;
     }
-    release->last_press_ns = event.timestamp_ns;
-    pressed = 1;
+    release->last_trigger_ns = event.timestamp_ns;
+    triggered = 1;
   }
-  return pressed;
+  return triggered;
 }
+
+#ifdef HOTSWAPD_TESTING
+struct gpio_release *
+gpio_release_test_adopt_event_fd(int event_fd, unsigned int debounce_us) {
+  if (event_fd < 0) {
+    errno = EINVAL;
+    return NULL;
+  }
+
+  int flags = fcntl(event_fd, F_GETFL);
+  if (flags < 0 || fcntl(event_fd, F_SETFL, flags | O_NONBLOCK) != 0) {
+    return NULL;
+  }
+
+  struct gpio_release *release = calloc(1, sizeof(*release));
+  if (!release) {
+    return NULL;
+  }
+  release->event_fd = event_fd;
+  release->debounce_us = debounce_us;
+  snprintf(release->chip_path, sizeof(release->chip_path), "test-event-fd");
+  return release;
+}
+#endif
 
 #else
 
@@ -242,6 +286,25 @@ int gpio_release_process(struct gpio_release *release) {
   errno = ENOTSUP;
   return -1;
 }
+
+#ifdef HOTSWAPD_TESTING
+struct gpio_release *
+gpio_release_test_adopt_event_fd(int event_fd, unsigned int debounce_us) {
+  (void)event_fd;
+  (void)debounce_us;
+  errno = ENOTSUP;
+  return NULL;
+}
+
+int gpio_release_test_chip_score(const char *chip_label,
+                                 const char *line_name,
+                                 unsigned int line_offset) {
+  (void)chip_label;
+  (void)line_name;
+  (void)line_offset;
+  return 0;
+}
+#endif
 
 #endif
 

@@ -254,14 +254,14 @@ static int prepare_release_cb(const struct hs_device *const_dev,
   return 0;
 }
 
-static void handle_gpio_release_press(void) {
+static void handle_gpio_release_trigger(void) {
   struct release_selection selection;
   memset(&selection, 0, sizeof(selection));
   selection.prefix = g_release_devpath_prefix;
   state_iterate(count_release_candidates_cb, &selection);
 
   if (selection.matched == 0) {
-    LOG_WARN("gpio: release pressed but no matching module is attached");
+    LOG_WARN("gpio: release triggered but no matching module is attached");
     dbus_emit_release_failed(g_release_devpath_prefix,
                              "no matching module is attached");
     return;
@@ -272,11 +272,11 @@ static void handle_gpio_release_press(void) {
              selection.matched);
     dbus_emit_release_failed("",
                              "multiple modules attached; configure a USB "
-                             "DEVPATH prefix for this switch");
+                             "DEVPATH prefix for this release contact");
     return;
   }
 
-  LOG_INFO("gpio: safe-release switch pressed (%d module%s selected)",
+  LOG_INFO("gpio: safe-release contact opened (%d module%s selected)",
            selection.matched, selection.matched == 1 ? "" : "s");
   if (g_release_devpath_prefix[0] == '\0') {
     selection.prefix = selection.only_device->devpath;
@@ -310,7 +310,7 @@ static void print_usage(const char *prog) {
   printf("  -c <path>   Path to modules.json registry config file\n");
   printf("  -G <chip>   GPIO chip path, or 'auto' (default: auto)\n");
   printf("  -L <line>   GPIO line offset (default: 26 / header pin 37)\n");
-  printf("  -P <prefix> USB DEVPATH prefix controlled by the release switch\n");
+  printf("  -P <prefix> USB DEVPATH prefix controlled by the release contact\n");
   printf("  --no-gpio-release  Disable the GPIO safe-release input\n");
   printf("  -v          Verbose logging output\n");
   printf("  -vv         Debug logging output (very verbose)\n");
@@ -440,7 +440,7 @@ int main(int argc, char *argv[]) {
   }
 
   /* 6. Initialize D-Bus Service */
-  if (dbus_service_init() != 0) {
+  if (dbus_service_init(reg) != 0) {
     LOG_ERR("main: failed to initialize D-Bus service");
     registry_free(reg);
     close(sigfd);
@@ -494,7 +494,7 @@ int main(int argc, char *argv[]) {
   register_context(&g_ctx_signal);
 
   /* GPIO safe release is optional at runtime so development machines and
-   * carrier boards without the switch can still run the daemon. */
+   * carrier boards without the release contact can still run the daemon. */
   struct gpio_release *gpio_release = NULL;
   if (gpio_enabled) {
     struct gpio_release_config gpio_config = {
@@ -630,11 +630,11 @@ int main(int argc, char *argv[]) {
             monitor_set_registry(mon, reg);
           }
         } else if (ctx->source == SRC_GPIO_RELEASE) {
-          int pressed = gpio_release_process(
+          int triggered = gpio_release_process(
               (struct gpio_release *)ctx->data);
-          if (pressed > 0) {
-            handle_gpio_release_press();
-          } else if (pressed < 0) {
+          if (triggered > 0) {
+            handle_gpio_release_trigger();
+          } else if (triggered < 0) {
             LOG_WARN("main: failed to read GPIO release event: %s",
                      strerror(errno));
           }

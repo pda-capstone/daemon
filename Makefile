@@ -60,15 +60,16 @@ $(CLI): $(CLI_OBJS)
 
 clean:
 	rm -f $(DAEMON) $(CLI) $(DAEMON_OBJS) $(CLI_OBJS)
-	rm -f tests/test_registry tests/test_device_state tests/test_power_info tests/test_storage tests/test_usb_classification tests/*.o src/*.o src/hsctl/*.o
+	rm -f tests/test_registry tests/test_device_state tests/test_power_info tests/test_storage tests/test_gpio_release tests/test_usb_classification tests/*.o src/*.o src/hsctl/*.o
 
 # Unit Tests Target
-test: tests/test_registry tests/test_device_state tests/test_power_info tests/test_storage tests/test_usb_classification
+test: tests/test_registry tests/test_device_state tests/test_power_info tests/test_storage tests/test_gpio_release tests/test_usb_classification
 	@echo "Running unit tests..."
 	./tests/test_registry
 	./tests/test_device_state
 	./tests/test_power_info
 	./tests/test_storage
+	./tests/test_gpio_release
 	./tests/test_usb_classification
 
 tests/test_registry: tests/test_registry.o src/module_registry.o src/log.o src/device_state.o
@@ -80,7 +81,21 @@ tests/test_device_state: tests/test_device_state.o src/device_state.o src/log.o
 tests/test_power_info: tests/test_power_info.o src/power_info.o src/log.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
-tests/test_storage: tests/test_storage.o src/storage_handler.o src/log.o
+tests/test_storage: tests/test_storage.o tests/storage_handler_testable.o src/log.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+
+tests/test_storage.o: CFLAGS += -DHOTSWAPD_TESTING
+
+tests/storage_handler_testable.o: src/storage_handler.c
+	$(CC) $(CFLAGS) -DHOTSWAPD_TESTING -c -o $@ $<
+
+tests/test_gpio_release: tests/test_gpio_release.o tests/gpio_release_testable.o src/log.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+
+tests/gpio_release_testable.o: src/gpio_release.c
+	$(CC) $(CFLAGS) -DHOTSWAPD_TESTING -c -o $@ $<
+
+tests/test_usb_classification: tests/test_usb_classification.o src/usb_classification.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 tests/test_usb_classification: tests/test_usb_classification.o src/usb_classification.o

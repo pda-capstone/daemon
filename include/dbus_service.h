@@ -15,6 +15,8 @@
 #include "hotswapd.h"
 #include <dbus/dbus.h>
 
+struct module_registry;
+
 /* ── Lifecycle ───────────────────────────────────────────────────────────── */
 
 /**
@@ -23,7 +25,7 @@
  *
  * @return 0 on success, -1 on error.
  */
-int dbus_service_init(void);
+int dbus_service_init(struct module_registry *registry);
 
 /**
  * Shut down the D-Bus service.  Releases the bus name and closes
@@ -83,6 +85,8 @@ int dbus_emit_release_failed(const char *devpath, const char *reason);
  *   ListModules()       → a(ssssu)
  *   GetModuleInfo(s)    → a{sv}
  *   GetTotalPowerDraw() → u
+ *   ListRegistry()      → a(sssss)
+ *   RegisterModule(sbsss) → sssssb (root callers only)
  *
  * @return DBUS_HANDLER_RESULT_HANDLED or DBUS_HANDLER_RESULT_NOT_YET_HANDLED.
  */

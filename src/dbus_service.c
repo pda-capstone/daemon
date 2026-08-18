@@ -15,6 +15,8 @@
  *   ListModules()       → a(ssssu)
  *   GetModuleInfo(s)    → a{sv}
  *   GetTotalPowerDraw() → u
+ *   ListRegistry()      → a(sssss)
+ *   RegisterModule(sbsss) → sssssb (root callers only)
  *
  * SPDX-License-Identifier: MIT
  */
@@ -22,8 +24,11 @@
 #include "../include/dbus_service.h"
 #include "../include/device_state.h"
 #include "../include/log.h"
+#include "../include/module_registry.h"
 #include "../include/power_info.h"
 
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +38,7 @@
 /* ── Module state ────────────────────────────────────────────────────────── */
 
 static DBusConnection *g_conn;
+static struct module_registry *g_registry;
 
 /* epoll fd that D-Bus watches are added to (set by dbus_service_setup_epoll) */
 static int g_epoll_fd = -1;
@@ -276,6 +282,153 @@ static DBusMessage *handle_get_total_power_draw(DBusMessage *msg) {
   return reply;
 }
 
+/** ListRegistry() → a(sssss): VID, PID, name, category, description. */
+static DBusMessage *handle_list_registry(DBusMessage *msg) {
+  if (!g_registry) {
+    return dbus_message_new_error(msg, DBUS_ERROR_FAILED,
+                                  "Registry is unavailable");
+  }
+
+  DBusMessage *reply = dbus_message_new_method_return(msg);
+  if (!reply) {
+    return NULL;
+  }
+  DBusMessageIter iter, array_iter;
+  dbus_message_iter_init_append(reply, &iter);
+  dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "(sssss)",
+                                   &array_iter);
+
+  int count = registry_count(g_registry);
+  for (int i = 0; i < count; i++) {
+    const struct module_info *info = registry_get(g_registry, i);
+    if (!info) {
+      continue;
+    }
+    DBusMessageIter struct_iter;
+    dbus_message_iter_open_container(&array_iter, DBUS_TYPE_STRUCT, NULL,
+                                     &struct_iter);
+    const char *vendor_id = info->vendor_id;
+    const char *product_id = info->product_id;
+    const char *name = info->name;
+    const char *category = category_to_string(info->category);
+    const char *description = info->description;
+    dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_STRING, &vendor_id);
+    dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_STRING, &product_id);
+    dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_STRING, &name);
+    dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_STRING, &category);
+    dbus_message_iter_append_basic(&struct_iter, DBUS_TYPE_STRING,
+                                   &description);
+    dbus_message_iter_close_container(&array_iter, &struct_iter);
+  }
+  dbus_message_iter_close_container(&iter, &array_iter);
+  return reply;
+}
+
+static int caller_is_root(DBusConnection *conn, DBusMessage *msg) {
+  const char *sender = dbus_message_get_sender(msg);
+  if (!sender) {
+    return 0;
+  }
+  DBusError error;
+  dbus_error_init(&error);
+  unsigned long uid = dbus_bus_get_unix_user(conn, sender, &error);
+  if (dbus_error_is_set(&error)) {
+    LOG_WARN("dbus: cannot resolve caller UID for %s: %s", sender,
+             error.message);
+    dbus_error_free(&error);
+    return 0;
+  }
+  return uid != ULONG_MAX && uid == 0;
+}
+
+static DBusMessage *handle_register_module(DBusConnection *conn,
+                                           DBusMessage *msg) {
+  if (!caller_is_root(conn, msg)) {
+    return dbus_message_new_error(
+        msg, DBUS_ERROR_ACCESS_DENIED,
+        "RegisterModule requires a root caller; run hsctl with sudo");
+  }
+  if (!g_registry) {
+    return dbus_message_new_error(msg, DBUS_ERROR_FAILED,
+                                  "Registry is unavailable");
+  }
+
+  const char *devpath = NULL;
+  dbus_bool_t replace = FALSE;
+  const char *name = NULL;
+  const char *category = NULL;
+  const char *description = NULL;
+  DBusError error;
+  dbus_error_init(&error);
+  if (!dbus_message_get_args(
+          msg, &error, DBUS_TYPE_STRING, &devpath, DBUS_TYPE_BOOLEAN, &replace,
+          DBUS_TYPE_STRING, &name, DBUS_TYPE_STRING, &category,
+          DBUS_TYPE_STRING, &description, DBUS_TYPE_INVALID)) {
+    LOG_WARN("dbus: RegisterModule: bad args: %s", error.message);
+    dbus_error_free(&error);
+    return dbus_message_new_error(
+        msg, DBUS_ERROR_INVALID_ARGS,
+        "Expected devpath, replace, name, category, and description");
+  }
+
+  const struct hs_device *connected = state_find(devpath);
+  if (!connected) {
+    return dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS,
+                                  "Connected device not found");
+  }
+
+  struct hs_device registration = *connected;
+  if (category && category[0]) {
+    enum device_category parsed = category_from_string(category);
+    if (parsed <= DEV_CAT_UNKNOWN || parsed >= DEV_CAT_COUNT) {
+      return dbus_message_new_error(
+          msg, DBUS_ERROR_INVALID_ARGS,
+          "Invalid category; use storage, hid, serial, network, audio, video, or hub");
+    }
+    registration.category = parsed;
+  }
+
+  int was_replaced = 0;
+  if (registry_register_device(g_registry, &registration, name, description,
+                               replace ? 1 : 0, &was_replaced) != 0) {
+    if (errno == EEXIST) {
+      return dbus_message_new_error(
+          msg, "org.postmarketos.HotSwap.Error.AlreadyRegistered",
+          "VID/PID is already registered; use --replace to update it");
+    }
+    if (errno == EINVAL) {
+      return dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS,
+                                    "Invalid device registration data");
+    }
+    return dbus_message_new_error_printf(
+        msg, DBUS_ERROR_FAILED, "Registry update failed: %s", strerror(errno));
+  }
+
+  const struct module_info *registered = registry_lookup(
+      g_registry, registration.vendor_id, registration.product_id);
+  if (!registered) {
+    return dbus_message_new_error(msg, DBUS_ERROR_FAILED,
+                                  "Registry updated but entry was not found");
+  }
+
+  DBusMessage *reply = dbus_message_new_method_return(msg);
+  if (!reply) {
+    return NULL;
+  }
+  const char *vendor_id = registered->vendor_id;
+  const char *product_id = registered->product_id;
+  const char *registered_name = registered->name;
+  const char *registered_category = category_to_string(registered->category);
+  const char *registered_description = registered->description;
+  dbus_bool_t replaced_value = was_replaced ? TRUE : FALSE;
+  dbus_message_append_args(
+      reply, DBUS_TYPE_STRING, &vendor_id, DBUS_TYPE_STRING, &product_id,
+      DBUS_TYPE_STRING, &registered_name, DBUS_TYPE_STRING,
+      &registered_category, DBUS_TYPE_STRING, &registered_description,
+      DBUS_TYPE_BOOLEAN, &replaced_value, DBUS_TYPE_INVALID);
+  return reply;
+}
+
 /* ── Message filter ──────────────────────────────────────────────────────── */
 
 DBusHandlerResult dbus_handle_message(DBusConnection *conn, DBusMessage *msg,
@@ -303,6 +456,10 @@ DBusHandlerResult dbus_handle_message(DBusConnection *conn, DBusMessage *msg,
     reply = handle_get_module_info(msg);
   } else if (strcmp(member, "GetTotalPowerDraw") == 0) {
     reply = handle_get_total_power_draw(msg);
+  } else if (strcmp(member, "ListRegistry") == 0) {
+    reply = handle_list_registry(msg);
+  } else if (strcmp(member, "RegisterModule") == 0) {
+    reply = handle_register_module(conn, msg);
   } else {
     reply = dbus_message_new_error_printf(msg, DBUS_ERROR_UNKNOWN_METHOD,
                                           "Unknown method: %s", member);
@@ -318,7 +475,12 @@ DBusHandlerResult dbus_handle_message(DBusConnection *conn, DBusMessage *msg,
 
 /* ── Public API — Lifecycle ──────────────────────────────────────────────── */
 
-int dbus_service_init(void) {
+int dbus_service_init(struct module_registry *registry) {
+  if (!registry) {
+    errno = EINVAL;
+    return -1;
+  }
+  g_registry = registry;
   DBusError err;
   dbus_error_init(&err);
 
@@ -326,6 +488,7 @@ int dbus_service_init(void) {
   if (!g_conn) {
     LOG_ERR("dbus: failed to connect to system bus: %s", err.message);
     dbus_error_free(&err);
+    g_registry = NULL;
     return -1;
   }
 
@@ -338,6 +501,7 @@ int dbus_service_init(void) {
     dbus_error_free(&err);
     dbus_connection_unref(g_conn);
     g_conn = NULL;
+    g_registry = NULL;
     return -1;
   }
 
@@ -346,6 +510,7 @@ int dbus_service_init(void) {
     LOG_ERR("dbus: failed to add message filter");
     dbus_connection_unref(g_conn);
     g_conn = NULL;
+    g_registry = NULL;
     return -1;
   }
 
@@ -370,6 +535,7 @@ void dbus_service_shutdown(void) {
 
   dbus_connection_unref(g_conn);
   g_conn = NULL;
+  g_registry = NULL;
 
   LOG_INFO("dbus: shutdown");
 }
