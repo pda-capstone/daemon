@@ -12,7 +12,7 @@
 
 #include "hotswapd.h"
 
-/* Lifecycle */
+/* ── Lifecycle ───────────────────────────────────────────────────────────── */
 
 /**
  * Add a device to the tracked list.  The device struct is moved (caller
@@ -34,7 +34,7 @@ struct hs_device *state_remove(const char *devpath);
  */
 void state_free_all(void);
 
-/* Queries */
+/* ── Queries ─────────────────────────────────────────────────────────────── */
 
 /**
  * Find a device by devpath.
@@ -55,7 +55,7 @@ int state_count(void);
  */
 unsigned int state_total_power_ma(void);
 
-/* Iteration */
+/* ── Iteration ───────────────────────────────────────────────────────────── */
 
 /**
  * Callback type for state_iterate().
@@ -74,7 +74,7 @@ typedef int (*state_iterate_cb)(const struct hs_device *dev, void *userdata);
  */
 int state_iterate(state_iterate_cb cb, void *userdata);
 
-/* Helpers for storage sync timers */
+/* ── Helpers for storage sync timers ─────────────────────────────────────── */
 
 /**
  * Collect all sync timer fds into the provided array.
