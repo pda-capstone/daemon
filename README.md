@@ -175,12 +175,12 @@ This script is intentionally scoped to one mass-storage module type. The
 original project criterion covering three distinct physical module types still
 requires separate HID and serial (or equivalent) validation evidence.
 
-See [artifacts/hotswapd-demo.md](artifacts/hotswapd-demo.md) for the complete
+See [docs/hotswapd-demo.md](docs/hotswapd-demo.md) for the complete
 presenter runbook, expected output, safety notes, and troubleshooting steps.
 
 For visual overviews of the system boundary, components, event loop, attach and
 detach flows, storage safety behavior, registry updates, and D-Bus contract, see
-[artifacts/hotswapd-diagrams.md](artifacts/hotswapd-diagrams.md).
+[docs/hotswapd-diagrams.md](docs/hotswapd-diagrams.md).
 
 ## Install
 
@@ -324,8 +324,8 @@ items still require target validation on CM5 or equivalent hardware:
 See:
 
 - [HANDOFF.md](HANDOFF.md)
-- [artifacts/hotswapd-requirements-traceability.md](/home/aolivier/hotswapd/artifacts/hotswapd-requirements-traceability.md)
-- [artifacts/hotswapd-validation-checklist.md](/home/aolivier/hotswapd/artifacts/hotswapd-validation-checklist.md)
+- [docs/hotswapd-requirements-traceability.md](docs/hotswapd-requirements-traceability.md)
+- [docs/hotswapd-validation-checklist.md](docs/hotswapd-validation-checklist.md)
 
 ## License
 
