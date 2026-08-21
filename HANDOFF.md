@@ -190,6 +190,10 @@ sudo systemctl enable --now hotswapd.service
 systemctl status hotswapd.service
 ```
 
+Run `enable --now` once after installation. It starts the daemon immediately
+and enables the systemd service so that the daemon starts automatically on
+future boots; it does not need to be started manually after each boot.
+
 Installed files:
 
 ```text
