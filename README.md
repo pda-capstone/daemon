@@ -175,9 +175,6 @@ This script is intentionally scoped to one mass-storage module type. The
 original project criterion covering three distinct physical module types still
 requires separate HID and serial (or equivalent) validation evidence.
 
-See [artifacts/hotswapd-demo.md](artifacts/hotswapd-demo.md) for the complete
-presenter runbook, expected output, safety notes, and troubleshooting steps.
-
 ## Install
 
 The install target supports `DESTDIR` and standard path overrides.
