@@ -6,9 +6,7 @@
 /hotswapd
 /hsctl
 
-# Artifacts
-artifacts/*
-
 # macOS files
 .DS_Store
+
 
