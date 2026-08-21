@@ -216,13 +216,17 @@ Typical target-system workflow:
 ```sh
 sudo make install
 sudo systemctl daemon-reload
-sudo systemctl restart hotswapd.service
+sudo systemctl enable --now hotswapd.service
 systemctl status hotswapd.service
 busctl --system list | grep org.postmarketos.HotSwap
 hsctl list
 hsctl power
 journalctl -u hotswapd.service -f
 ```
+
+The `enable --now` command both starts the service immediately and enables it
+to start automatically on future boots. This is a one-time setup step after
+installation; the daemon does not need to be started manually after each boot.
 
 ## Registering a Connected Module
 
