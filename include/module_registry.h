@@ -25,25 +25,25 @@
 /* ── Per-module sync policy (overrides global default) ───────────────────── */
 
 struct module_sync_policy {
-  enum sync_mode mode;
-  int idle_sync_delay_s;        /* seconds of idle before sync (mode=idle) */
-  int fallback_sync_interval_s; /* periodic fallback interval (mode=idle) */
+    enum sync_mode mode;
+    int idle_sync_delay_s;        /* seconds of idle before sync (mode=idle) */
+    int fallback_sync_interval_s; /* periodic fallback interval (mode=idle) */
 };
 
 /* ── Module definition ───────────────────────────────────────────────────── */
 
 struct module_info {
-  char vendor_id[HOTSWAP_MAX_ID];
-  char product_id[HOTSWAP_MAX_ID];
-  char name[HOTSWAP_MAX_NAME];
-  char description[256];
-  enum device_category category;
-  int has_sync_policy;
+    char vendor_id[HOTSWAP_MAX_ID];
+    char product_id[HOTSWAP_MAX_ID];
+    char name[HOTSWAP_MAX_NAME];
+    char description[256];
+    enum device_category category;
+    int has_sync_policy;
 
-  struct module_action on_attach;
-  struct module_action on_detach;
+    struct module_action on_attach;
+    struct module_action on_detach;
 
-  struct module_sync_policy sync_policy;
+    struct module_sync_policy sync_policy;
 };
 
 /* ── Registry handle (opaque to callers) ─────────────────────────────────── */

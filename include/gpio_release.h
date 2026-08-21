@@ -16,9 +16,9 @@
 struct gpio_release;
 
 struct gpio_release_config {
-  const char *chip_path; /* /dev/gpiochipN, or "auto" */
-  unsigned int line_offset;
-  unsigned int debounce_us;
+    const char *chip_path; /* /dev/gpiochipN, or "auto" */
+    unsigned int line_offset;
+    unsigned int debounce_us;
 };
 
 /**

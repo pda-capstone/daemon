@@ -29,12 +29,12 @@
 #define STORAGE_ATTACH_DISCOVERY_INTERVAL_MS 200
 #define STORAGE_ATTACH_DISCOVERY_TIMEOUT_MS 10000
 #define STORAGE_ATTACH_MAX_ATTEMPTS                                            \
-  (STORAGE_ATTACH_DISCOVERY_TIMEOUT_MS / STORAGE_ATTACH_DISCOVERY_INTERVAL_MS)
+    (STORAGE_ATTACH_DISCOVERY_TIMEOUT_MS / STORAGE_ATTACH_DISCOVERY_INTERVAL_MS)
 
 enum storage_attach_result {
-  STORAGE_ATTACH_ERROR = -1,
-  STORAGE_ATTACH_PENDING = 0,
-  STORAGE_ATTACH_COMPLETE = 1
+    STORAGE_ATTACH_ERROR = -1,
+    STORAGE_ATTACH_PENDING = 0,
+    STORAGE_ATTACH_COMPLETE = 1
 };
 
 /*
@@ -42,14 +42,14 @@ enum storage_attach_result {
  * use the built-in sysfs, procfs, mount, syncfs, and umount2 operations.
  */
 struct storage_operations {
-  int (*scan_mounts)(struct hs_device *dev);
-  int (*discover_block_devices)(const struct hs_device *dev,
-                                char paths[][PATH_MAX], size_t max_paths);
-  int (*mount_device)(const char *source, const char *target,
-                      const char *options);
-  int (*mount_matches)(const char *source, const char *target);
-  int (*unmount_path)(const char *target, int flags);
-  int (*sync_mount)(const char *target);
+    int (*scan_mounts)(struct hs_device *dev);
+    int (*discover_block_devices)(const struct hs_device *dev,
+                                  char paths[][PATH_MAX], size_t max_paths);
+    int (*mount_device)(const char *source, const char *target,
+                        const char *options);
+    int (*mount_matches)(const char *source, const char *target);
+    int (*unmount_path)(const char *target, int flags);
+    int (*sync_mount)(const char *target);
 };
 
 /* ── Attach / detach handlers ────────────────────────────────────────────── */

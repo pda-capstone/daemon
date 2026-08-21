@@ -14,11 +14,11 @@
 /* ── Log levels ──────────────────────────────────────────────────────────── */
 
 enum log_level {
-  LOG_LVL_ERROR = 0,
-  LOG_LVL_WARN,
-  LOG_LVL_INFO,
-  LOG_LVL_VERBOSE,
-  LOG_LVL_DEBUG
+    LOG_LVL_ERROR = 0,
+    LOG_LVL_WARN,
+    LOG_LVL_INFO,
+    LOG_LVL_VERBOSE,
+    LOG_LVL_DEBUG
 };
 
 /* ── Initialization ──────────────────────────────────────────────────────── */

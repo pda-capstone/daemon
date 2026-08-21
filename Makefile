@@ -6,6 +6,7 @@
 #
 
 CC      := gcc
+CLANG_FORMAT ?= clang-format
 CFLAGS  += -std=c11 -Wall -Wextra -Wpedantic -Werror -D_GNU_SOURCE -Iinclude
 LDFLAGS +=
 
@@ -46,7 +47,7 @@ DAEMON_OBJS = $(DAEMON_SRCS:.c=.o)
 CLI_SRCS = src/hsctl/hsctl.c
 CLI_OBJS = $(CLI_SRCS:.c=.o)
 
-.PHONY: all clean test install uninstall
+.PHONY: all clean test format install uninstall
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -98,6 +99,10 @@ tests/gpio_release_testable.o: src/gpio_release.c
 
 tests/test_usb_classification: tests/test_usb_classification.o src/usb_classification.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+
+format:
+	$(CLANG_FORMAT) -i $(DAEMON_SRCS) $(CLI_SRCS)
+	find include -type f -name '*.h' -exec $(CLANG_FORMAT) -i {} +
 
 # Installation
 install: all
