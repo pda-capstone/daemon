@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+
 #include "../include/power_info.h"
 
 #include <limits.h>
@@ -67,7 +69,8 @@ int main(void) {
             missing.self_powered == 0,
         "missing attributes zero fields");
 
-  CHECK(write_attr(tmpdir, "speed", "bogus\n") == 0, "overwrite malformed speed");
+  CHECK(write_attr(tmpdir, "speed", "bogus\n") == 0,
+        "overwrite malformed speed");
   CHECK(write_attr(tmpdir, "bMaxPower", "oops\n") == 0,
         "overwrite malformed power");
   memset(&malformed, 0, sizeof(malformed));

@@ -10,7 +10,7 @@
  * network) can be added later by feeding more module_info entries into
  * the same array.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef HOTSWAPD_MODULE_REGISTRY_H
@@ -24,25 +24,25 @@
 /* ── Per-module sync policy (overrides global default) ───────────────────── */
 
 struct module_sync_policy {
-    enum sync_mode mode;
-    int idle_sync_delay_s;       /* seconds of idle before sync (mode=idle) */
-    int fallback_sync_interval_s;/* periodic fallback interval (mode=idle) */
+  enum sync_mode mode;
+  int idle_sync_delay_s;        /* seconds of idle before sync (mode=idle) */
+  int fallback_sync_interval_s; /* periodic fallback interval (mode=idle) */
 };
 
 /* ── Module definition ───────────────────────────────────────────────────── */
 
 struct module_info {
-    char vendor_id[HOTSWAP_MAX_ID];
-    char product_id[HOTSWAP_MAX_ID];
-    char name[HOTSWAP_MAX_NAME];
-    char description[256];
-    enum device_category category;
-    int has_sync_policy;
+  char vendor_id[HOTSWAP_MAX_ID];
+  char product_id[HOTSWAP_MAX_ID];
+  char name[HOTSWAP_MAX_NAME];
+  char description[256];
+  enum device_category category;
+  int has_sync_policy;
 
-    struct module_action on_attach;
-    struct module_action on_detach;
+  struct module_action on_attach;
+  struct module_action on_detach;
 
-    struct module_sync_policy sync_policy;
+  struct module_sync_policy sync_policy;
 };
 
 /* ── Registry handle (opaque to callers) ─────────────────────────────────── */
@@ -120,18 +120,21 @@ int registry_register_device(struct module_registry *reg,
  * Get the default action for a category (from the "defaults" section).
  * Returns NULL if no default is defined for this category.
  */
-const struct module_action *registry_default_attach(
-    const struct module_registry *reg, enum device_category cat);
+const struct module_action *
+registry_default_attach(const struct module_registry *reg,
+                        enum device_category cat);
 
-const struct module_action *registry_default_detach(
-    const struct module_registry *reg, enum device_category cat);
+const struct module_action *
+registry_default_detach(const struct module_registry *reg,
+                        enum device_category cat);
 
 /**
  * Get the default sync policy for a category.
  * Returns NULL if no default is defined.
  */
-const struct module_sync_policy *registry_default_sync(
-    const struct module_registry *reg, enum device_category cat);
+const struct module_sync_policy *
+registry_default_sync(const struct module_registry *reg,
+                      enum device_category cat);
 
 /* ── inotify integration ─────────────────────────────────────────────────── */
 

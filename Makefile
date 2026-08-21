@@ -1,7 +1,7 @@
 #
 # Makefile for hotswapd and hsctl.
 #
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 CC      := gcc
@@ -97,13 +97,6 @@ tests/gpio_release_testable.o: src/gpio_release.c
 
 tests/test_usb_classification: tests/test_usb_classification.o src/usb_classification.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
-
-tests/test_usb_classification: tests/test_usb_classification.o src/usb_classification.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
-
-format:
-	clang-format -i $(DAEMON_SRCS) $(CLI_SRCS)
-	find include/ -iname "*.h" | xargs clang-format -i
 
 # Installation
 install: all

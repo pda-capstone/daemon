@@ -178,6 +178,10 @@ requires separate HID and serial (or equivalent) validation evidence.
 See [artifacts/hotswapd-demo.md](artifacts/hotswapd-demo.md) for the complete
 presenter runbook, expected output, safety notes, and troubleshooting steps.
 
+For visual overviews of the system boundary, components, event loop, attach and
+detach flows, storage safety behavior, registry updates, and D-Bus contract, see
+[artifacts/hotswapd-diagrams.md](artifacts/hotswapd-diagrams.md).
+
 ## Install
 
 The install target supports `DESTDIR` and standard path overrides.
@@ -316,3 +320,14 @@ items still require target validation on CM5 or equivalent hardware:
 - D-Bus/systemd behavior on the installed target image
 - GPIO26 rising-edge detection, debounce, and ready/failed indication
 - any accurate per-device USB-C PD reporting
+
+See:
+
+- [HANDOFF.md](HANDOFF.md)
+- [artifacts/hotswapd-requirements-traceability.md](/home/aolivier/hotswapd/artifacts/hotswapd-requirements-traceability.md)
+- [artifacts/hotswapd-validation-checklist.md](/home/aolivier/hotswapd/artifacts/hotswapd-validation-checklist.md)
+
+## License
+
+This project is licensed under the GNU General Public License, version 3 only
+(SPDX: `GPL-3.0-only`). See [LICENSE](LICENSE) for the complete license text.

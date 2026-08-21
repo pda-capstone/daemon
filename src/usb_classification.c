@@ -1,7 +1,7 @@
 /*
  * usb_classification.c — USB class-to-category resolution.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "../include/usb_classification.h"
@@ -52,10 +52,8 @@ static int category_priority(enum device_category category) {
 }
 
 enum device_category usb_resolve_category(
-    int has_registry_category,
-    enum device_category registry_category,
-    unsigned int device_class,
-    const unsigned int *interface_classes,
+    int has_registry_category, enum device_category registry_category,
+    unsigned int device_class, const unsigned int *interface_classes,
     size_t interface_class_count) {
   if (has_registry_category) {
     return registry_category;

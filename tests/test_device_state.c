@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+
 #include "../include/device_state.h"
 
 #include <stdio.h>

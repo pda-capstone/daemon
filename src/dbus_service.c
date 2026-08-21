@@ -5,8 +5,8 @@
  * Uses the low-level libdbus API (no GLib dependency).
  *
  * Signals:
- *   ModuleAttached(s:devpath, s:vid, s:pid, s:name, s:category, u:power, u:speed)
- *   ModuleDetached(s:devpath, s:name, b:was_unclean)
+ *   ModuleAttached(s:devpath, s:vid, s:pid, s:name, s:category, u:power,
+ * u:speed) ModuleDetached(s:devpath, s:name, b:was_unclean)
  *   ModuleReadyForRemoval(s:devpath, s:name)
  *   ModuleReleaseFailed(s:devpath, s:reason)
  *   PowerChanged(u:total_ma, u:count)
@@ -18,7 +18,7 @@
  *   ListRegistry()      → a(sssss)
  *   RegisterModule(sbsss) → sssssb (root callers only)
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "../include/dbus_service.h"
@@ -249,7 +249,8 @@ static DBusMessage *handle_get_module_info(DBusMessage *msg) {
 
   const struct hs_device *dev = state_find(devpath);
   if (!dev) {
-    return dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, "Device not found");
+    return dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS,
+                                  "Device not found");
   }
 
   DBusMessage *reply = dbus_message_new_method_return(msg);
@@ -381,9 +382,9 @@ static DBusMessage *handle_register_module(DBusConnection *conn,
   if (category && category[0]) {
     enum device_category parsed = category_from_string(category);
     if (parsed <= DEV_CAT_UNKNOWN || parsed >= DEV_CAT_COUNT) {
-      return dbus_message_new_error(
-          msg, DBUS_ERROR_INVALID_ARGS,
-          "Invalid category; use storage, hid, serial, network, audio, video, or hub");
+      return dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS,
+                                    "Invalid category; use storage, hid, "
+                                    "serial, network, audio, video, or hub");
     }
     registration.category = parsed;
   }
@@ -566,8 +567,7 @@ int dbus_emit_module_attached(const struct hs_device *dev) {
   dbus_message_append_args(sig, DBUS_TYPE_STRING, &devpath, DBUS_TYPE_STRING,
                            &vid, DBUS_TYPE_STRING, &pid, DBUS_TYPE_STRING,
                            &name, DBUS_TYPE_STRING, &category, DBUS_TYPE_UINT32,
-                           &power, DBUS_TYPE_UINT32, &speed,
-                           DBUS_TYPE_INVALID);
+                           &power, DBUS_TYPE_UINT32, &speed, DBUS_TYPE_INVALID);
 
   dbus_connection_send(g_conn, sig, NULL);
   dbus_connection_flush(g_conn);
@@ -637,9 +637,9 @@ int dbus_emit_module_ready(const struct hs_device *dev) {
     return -1;
   }
 
-  DBusMessage *sig = dbus_message_new_signal(
-      HOTSWAP_DBUS_OBJECT_PATH, HOTSWAP_DBUS_INTERFACE,
-      "ModuleReadyForRemoval");
+  DBusMessage *sig =
+      dbus_message_new_signal(HOTSWAP_DBUS_OBJECT_PATH, HOTSWAP_DBUS_INTERFACE,
+                              "ModuleReadyForRemoval");
   if (!sig) {
     return -1;
   }
@@ -660,8 +660,7 @@ int dbus_emit_release_failed(const char *devpath, const char *reason) {
   }
 
   DBusMessage *sig = dbus_message_new_signal(
-      HOTSWAP_DBUS_OBJECT_PATH, HOTSWAP_DBUS_INTERFACE,
-      "ModuleReleaseFailed");
+      HOTSWAP_DBUS_OBJECT_PATH, HOTSWAP_DBUS_INTERFACE, "ModuleReleaseFailed");
   if (!sig) {
     return -1;
   }

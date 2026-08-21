@@ -6,7 +6,7 @@
 # It does not simulate udev or GPIO events: attach, detach, and safe-release
 # actions are performed with real hardware by the presenter.
 #
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-only
 
 set -Eeuo pipefail
 

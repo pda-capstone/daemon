@@ -1,7 +1,7 @@
 /*
  * storage_handler_internal.h — Test-only storage implementation seams.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef HOTSWAPD_STORAGE_HANDLER_INTERNAL_H

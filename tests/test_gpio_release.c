@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+
 #include "../include/gpio_release.h"
 #include "../include/gpio_release_internal.h"
 
@@ -12,12 +14,12 @@
 
 static int failures;
 
-#define CHECK(condition, message)                                             \
-  do {                                                                        \
-    if (!(condition)) {                                                       \
-      fprintf(stderr, "FAIL: %s\n", message);                                \
-      failures++;                                                             \
-    }                                                                         \
+#define CHECK(condition, message)                                              \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      fprintf(stderr, "FAIL: %s\n", message);                                  \
+      failures++;                                                              \
+    }                                                                          \
   } while (0)
 
 struct release_pipe {
@@ -35,8 +37,7 @@ static struct release_pipe make_release(unsigned int debounce_us) {
   }
   pipe_state.read_fd = fds[0];
   pipe_state.write_fd = fds[1];
-  pipe_state.release =
-      gpio_release_test_adopt_event_fd(fds[0], debounce_us);
+  pipe_state.release = gpio_release_test_adopt_event_fd(fds[0], debounce_us);
   if (!pipe_state.release) {
     perror("gpio_release_test_adopt_event_fd");
     exit(EXIT_FAILURE);
@@ -189,8 +190,7 @@ static void test_invalid_inputs_and_ownership(void) {
 static void test_gpiochip_scoring(void) {
   int rp1_named = gpio_release_test_chip_score("pinctrl-rp1", "GPIO26", 26);
   int rp1_unnamed = gpio_release_test_chip_score("pinctrl-rp1", "", 26);
-  int bcm_named =
-      gpio_release_test_chip_score("pinctrl-bcm2712", "GPIO26", 26);
+  int bcm_named = gpio_release_test_chip_score("pinctrl-bcm2712", "GPIO26", 26);
   int unknown_named = gpio_release_test_chip_score("other", "GPIO26", 26);
   int unrelated = gpio_release_test_chip_score("other", "GPIO25", 26);
 

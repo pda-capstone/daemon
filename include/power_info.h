@@ -4,7 +4,7 @@
  * Reads legacy USB power attributes (bMaxPower, speed, bmAttributes)
  * and optional USB-C Power Delivery data from sysfs.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef HOTSWAPD_POWER_INFO_H

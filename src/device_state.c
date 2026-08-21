@@ -1,7 +1,7 @@
 /*
  * device_state.c — In-memory device state tracking (linked list).
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "../include/device_state.h"

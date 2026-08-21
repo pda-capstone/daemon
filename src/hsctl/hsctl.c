@@ -2,9 +2,9 @@
  * hsctl.c — Command line interface tool for hotswapd.
  *
  * Talks to the daemon via the D-Bus system bus.
- * Commands: list, info <devpath>, power, monitor.
+ * Commands: list, info <devpath>, power, registry, register, monitor.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "../../include/hotswapd.h"
@@ -41,6 +41,9 @@ static DBusMessage *send_method_call(DBusConnection *conn, const char *method,
         dbus_message_iter_append_basic(&iter, current_type, &val);
       } else if (current_type == DBUS_TYPE_UINT32) {
         dbus_uint32_t val = va_arg(args, dbus_uint32_t);
+        dbus_message_iter_append_basic(&iter, current_type, &val);
+      } else if (current_type == DBUS_TYPE_BOOLEAN) {
+        dbus_bool_t val = va_arg(args, dbus_bool_t) ? TRUE : FALSE;
         dbus_message_iter_append_basic(&iter, current_type, &val);
       } else {
         fprintf(stderr, "Error: unsupported argument type %d\n", current_type);
@@ -229,13 +232,118 @@ static int do_power(DBusConnection *conn) {
   return EXIT_SUCCESS;
 }
 
+static int do_registry(DBusConnection *conn) {
+  DBusMessage *reply =
+      send_method_call(conn, "ListRegistry", DBUS_TYPE_INVALID);
+  if (!reply) {
+    return EXIT_FAILURE;
+  }
+
+  DBusMessageIter iter, array_iter;
+  if (!dbus_message_iter_init(reply, &iter) ||
+      dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_ARRAY) {
+    fprintf(stderr, "Error: ListRegistry returned invalid response type\n");
+    dbus_message_unref(reply);
+    return EXIT_FAILURE;
+  }
+
+  dbus_message_iter_recurse(&iter, &array_iter);
+  printf("%-4s %-4s %-28s %-10s %s\n", "VID", "PID", "NAME", "CATEGORY",
+         "DESCRIPTION");
+  printf("---------------------------------------------------------------------"
+         "----------\n");
+
+  int count = 0;
+  while (dbus_message_iter_get_arg_type(&array_iter) == DBUS_TYPE_STRUCT) {
+    DBusMessageIter struct_iter;
+    dbus_message_iter_recurse(&array_iter, &struct_iter);
+
+    const char *values[5] = {NULL, NULL, NULL, NULL, NULL};
+    int valid = 1;
+    for (size_t i = 0; i < 5; i++) {
+      if (dbus_message_iter_get_arg_type(&struct_iter) != DBUS_TYPE_STRING) {
+        valid = 0;
+        break;
+      }
+      dbus_message_iter_get_basic(&struct_iter, &values[i]);
+      if (i < 4) {
+        dbus_message_iter_next(&struct_iter);
+      }
+    }
+    if (!valid) {
+      fprintf(stderr, "Error: ListRegistry returned an invalid entry\n");
+      dbus_message_unref(reply);
+      return EXIT_FAILURE;
+    }
+
+    printf("%-4s %-4s %-28s %-10s %s\n", values[0], values[1], values[2],
+           values[3], values[4]);
+    count++;
+    dbus_message_iter_next(&array_iter);
+  }
+
+  if (count == 0) {
+    printf("(Registry is empty)\n");
+  }
+
+  dbus_message_unref(reply);
+  return EXIT_SUCCESS;
+}
+
+static int do_register(DBusConnection *conn, const char *devpath, int replace,
+                       const char *name, const char *category,
+                       const char *description) {
+  dbus_bool_t replace_value = replace ? TRUE : FALSE;
+  const char *name_value = name ? name : "";
+  const char *category_value = category ? category : "";
+  const char *description_value = description ? description : "";
+
+  DBusMessage *reply = send_method_call(
+      conn, "RegisterModule", DBUS_TYPE_STRING, devpath, DBUS_TYPE_BOOLEAN,
+      replace_value, DBUS_TYPE_STRING, name_value, DBUS_TYPE_STRING,
+      category_value, DBUS_TYPE_STRING, description_value, DBUS_TYPE_INVALID);
+  if (!reply) {
+    return EXIT_FAILURE;
+  }
+
+  const char *vendor_id = NULL;
+  const char *product_id = NULL;
+  const char *registered_name = NULL;
+  const char *registered_category = NULL;
+  const char *registered_description = NULL;
+  dbus_bool_t was_replaced = FALSE;
+  DBusError error;
+  dbus_error_init(&error);
+  if (!dbus_message_get_args(
+          reply, &error, DBUS_TYPE_STRING, &vendor_id, DBUS_TYPE_STRING,
+          &product_id, DBUS_TYPE_STRING, &registered_name, DBUS_TYPE_STRING,
+          &registered_category, DBUS_TYPE_STRING, &registered_description,
+          DBUS_TYPE_BOOLEAN, &was_replaced, DBUS_TYPE_INVALID)) {
+    fprintf(stderr, "Error: RegisterModule returned invalid response: %s\n",
+            error.message);
+    dbus_error_free(&error);
+    dbus_message_unref(reply);
+    return EXIT_FAILURE;
+  }
+
+  printf("%s module %s:%s\n", was_replaced ? "Updated" : "Registered",
+         vendor_id, product_id);
+  printf("  Name:        %s\n", registered_name);
+  printf("  Category:    %s\n", registered_category);
+  printf("  Description: %s\n", registered_description);
+  printf("The entry will apply the next time the device is attached.\n");
+
+  dbus_message_unref(reply);
+  return EXIT_SUCCESS;
+}
+
 static int do_monitor(DBusConnection *conn) {
   DBusError err;
   dbus_error_init(&err);
 
   /* Add match rule to catch signals from hotswapd interface */
-  dbus_bus_add_match(
-      conn, "type='signal',interface='org.postmarketos.HotSwap'", &err);
+  dbus_bus_add_match(conn, "type='signal',interface='org.postmarketos.HotSwap'",
+                     &err);
   if (dbus_error_is_set(&err)) {
     fprintf(stderr, "Error adding match rule: %s\n", err.message);
     dbus_error_free(&err);
@@ -288,9 +396,8 @@ static int do_monitor(DBusConnection *conn) {
           if (dbus_message_get_args(msg, &sig_err, DBUS_TYPE_STRING, &devpath,
                                     DBUS_TYPE_STRING, &name, DBUS_TYPE_BOOLEAN,
                                     &was_unclean, DBUS_TYPE_INVALID)) {
-            printf(
-                "[DETACH] Path: %s | %s | Clean detach: %s\n", devpath, name,
-                was_unclean ? "NO (UNCLEAN - potential data loss)" : "YES");
+            printf("[DETACH] Path: %s | %s | Clean detach: %s\n", devpath, name,
+                   was_unclean ? "NO (UNCLEAN - potential data loss)" : "YES");
           } else {
             fprintf(stderr, "Error parsing ModuleDetached: %s\n",
                     sig_err.message);
@@ -361,7 +468,47 @@ static void print_usage(const char *prog) {
   fprintf(stderr, "  list              List all currently attached modules\n");
   fprintf(stderr, "  info <devpath>    Show detailed info for a module\n");
   fprintf(stderr, "  power             Show total USB power draw\n");
+  fprintf(stderr, "  registry          List registered module definitions\n");
+  fprintf(stderr,
+          "  register <devpath> [--replace] [--name <name>]\n"
+          "             [--category <category>] [--description <text>]\n"
+          "                    Register a currently attached module (root)\n");
   fprintf(stderr, "  monitor           Monitor events and signals live\n");
+}
+
+static int parse_register_options(int argc, char *argv[], int *replace,
+                                  const char **name, const char **category,
+                                  const char **description) {
+  *replace = 0;
+  *name = NULL;
+  *category = NULL;
+  *description = NULL;
+
+  for (int i = 3; i < argc; i++) {
+    if (strcmp(argv[i], "--replace") == 0) {
+      *replace = 1;
+      continue;
+    }
+
+    const char **destination = NULL;
+    if (strcmp(argv[i], "--name") == 0) {
+      destination = name;
+    } else if (strcmp(argv[i], "--category") == 0) {
+      destination = category;
+    } else if (strcmp(argv[i], "--description") == 0) {
+      destination = description;
+    } else {
+      fprintf(stderr, "Error: unknown register option '%s'\n", argv[i]);
+      return -1;
+    }
+
+    if (i + 1 >= argc) {
+      fprintf(stderr, "Error: %s requires a value\n", argv[i]);
+      return -1;
+    }
+    *destination = argv[++i];
+  }
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -395,6 +542,23 @@ int main(int argc, char *argv[]) {
     }
   } else if (strcmp(cmd, "power") == 0) {
     rc = do_power(conn);
+  } else if (strcmp(cmd, "registry") == 0) {
+    rc = do_registry(conn);
+  } else if (strcmp(cmd, "register") == 0) {
+    if (argc < 3) {
+      fprintf(stderr,
+              "Error: register command requires a <devpath> argument\n");
+      print_usage(argv[0]);
+    } else {
+      int replace = 0;
+      const char *name = NULL;
+      const char *category = NULL;
+      const char *description = NULL;
+      if (parse_register_options(argc, argv, &replace, &name, &category,
+                                 &description) == 0) {
+        rc = do_register(conn, argv[2], replace, name, category, description);
+      }
+    }
   } else if (strcmp(cmd, "monitor") == 0) {
     rc = do_monitor(conn);
   } else {

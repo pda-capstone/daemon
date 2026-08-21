@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+
 #include "../include/module_registry.h"
 
 #include <errno.h>
@@ -29,8 +31,7 @@ static int write_file(const char *path, const char *contents) {
 }
 
 static int check_module_name(const struct module_registry *reg,
-                             const char *vendor_id,
-                             const char *product_id,
+                             const char *vendor_id, const char *product_id,
                              const char *expected_name) {
   const struct module_info *info = registry_lookup(reg, vendor_id, product_id);
   if (!info) {
@@ -54,37 +55,35 @@ int main(void) {
   }
 
   snprintf(path, sizeof(path), "%s/modules.json", tmpdir);
-  CHECK(write_file(
-            path,
-            "{\n"
-            "  \"modules\": [\n"
-            "    {\n"
-            "      \"vendor_id\": \"0781\",\n"
-            "      \"product_id\": \"5567\",\n"
-            "      \"name\": \"SanDisk Cruzer Blade\",\n"
-            "      \"category\": \"storage\",\n"
-            "      \"on_attach\": {\n"
-            "        \"action\": \"mount\",\n"
-            "        \"options\": \"flush,noatime\",\n"
-            "        \"mount_point\": \"/mnt/{device}\"\n"
-            "      },\n"
-            "      \"sync_policy\": {\n"
-            "        \"mode\": \"periodic\",\n"
-            "        \"idle_sync_delay\": 7,\n"
-            "        \"fallback_sync_interval\": 42\n"
-            "      }\n"
-            "    }\n"
-            "  ],\n"
-            "  \"defaults\": {\n"
-            "    \"storage\": {\n"
-            "      \"sync_policy\": {\n"
-            "        \"mode\": \"idle\",\n"
-            "        \"idle_sync_delay\": 5,\n"
-            "        \"fallback_sync_interval\": 60\n"
-            "      }\n"
-            "    }\n"
-            "  }\n"
-            "}\n") == 0,
+  CHECK(write_file(path, "{\n"
+                         "  \"modules\": [\n"
+                         "    {\n"
+                         "      \"vendor_id\": \"0781\",\n"
+                         "      \"product_id\": \"5567\",\n"
+                         "      \"name\": \"SanDisk Cruzer Blade\",\n"
+                         "      \"category\": \"storage\",\n"
+                         "      \"on_attach\": {\n"
+                         "        \"action\": \"mount\",\n"
+                         "        \"options\": \"flush,noatime\",\n"
+                         "        \"mount_point\": \"/mnt/{device}\"\n"
+                         "      },\n"
+                         "      \"sync_policy\": {\n"
+                         "        \"mode\": \"periodic\",\n"
+                         "        \"idle_sync_delay\": 7,\n"
+                         "        \"fallback_sync_interval\": 42\n"
+                         "      }\n"
+                         "    }\n"
+                         "  ],\n"
+                         "  \"defaults\": {\n"
+                         "    \"storage\": {\n"
+                         "      \"sync_policy\": {\n"
+                         "        \"mode\": \"idle\",\n"
+                         "        \"idle_sync_delay\": 5,\n"
+                         "        \"fallback_sync_interval\": 60\n"
+                         "      }\n"
+                         "    }\n"
+                         "  }\n"
+                         "}\n") == 0,
         "write valid registry");
 
   reg = registry_load(path);
@@ -182,25 +181,23 @@ int main(void) {
             "replacement preserves per-device sync policy");
     }
 
-    CHECK(write_file(
-              path,
-              "{\n"
-              "  \"modules\": [\n"
-              "    {\n"
-              "      \"vendor_id\": \"0781\",\n"
-              "      \"product_id\": \"5567\",\n"
-              "      \"name\": \"Updated Module\",\n"
-              "      \"category\": \"storage\"\n"
-              "    }\n"
-              "  ],\n"
-              "  \"defaults\": {\n"
-              "    \"storage\": {\n"
-              "      \"sync_policy\": {\n"
-              "        \"mode\": \"manual\"\n"
-              "      }\n"
-              "    }\n"
-              "  }\n"
-              "}\n") == 0,
+    CHECK(write_file(path, "{\n"
+                           "  \"modules\": [\n"
+                           "    {\n"
+                           "      \"vendor_id\": \"0781\",\n"
+                           "      \"product_id\": \"5567\",\n"
+                           "      \"name\": \"Updated Module\",\n"
+                           "      \"category\": \"storage\"\n"
+                           "    }\n"
+                           "  ],\n"
+                           "  \"defaults\": {\n"
+                           "    \"storage\": {\n"
+                           "      \"sync_policy\": {\n"
+                           "        \"mode\": \"manual\"\n"
+                           "      }\n"
+                           "    }\n"
+                           "  }\n"
+                           "}\n") == 0,
           "rewrite registry in place");
     CHECK(registry_reload(reg) == 0, "registry_reload after rewrite");
     CHECK(check_module_name(reg, "0781", "5567", "Updated Module"),
@@ -211,19 +208,18 @@ int main(void) {
       CHECK(n >= 0 && (size_t)n < sizeof(tmp_path),
             "tmp registry path fits buffer");
     }
-    CHECK(write_file(
-              tmp_path,
-              "{\n"
-              "  \"modules\": [\n"
-              "    {\n"
-              "      \"vendor_id\": \"1a86\",\n"
-              "      \"product_id\": \"7523\",\n"
-              "      \"name\": \"Atomic Replacement Module\",\n"
-              "      \"category\": \"serial\"\n"
-              "    }\n"
-              "  ],\n"
-              "  \"defaults\": {}\n"
-              "}\n") == 0,
+    CHECK(write_file(tmp_path,
+                     "{\n"
+                     "  \"modules\": [\n"
+                     "    {\n"
+                     "      \"vendor_id\": \"1a86\",\n"
+                     "      \"product_id\": \"7523\",\n"
+                     "      \"name\": \"Atomic Replacement Module\",\n"
+                     "      \"category\": \"serial\"\n"
+                     "    }\n"
+                     "  ],\n"
+                     "  \"defaults\": {}\n"
+                     "}\n") == 0,
           "write replacement registry");
     CHECK(rename(tmp_path, path) == 0, "atomic registry replacement rename");
     CHECK(registry_handle_inotify_event(reg) == 0,

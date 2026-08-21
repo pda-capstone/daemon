@@ -10,7 +10,7 @@
  * All sysfs attributes are cached at add time because they become
  * unreadable after a remove event.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "../include/device_monitor.h"
@@ -94,8 +94,8 @@ static size_t collect_interface_classes(struct udev_device *usb_device,
 
   struct udev_list_entry *entry;
   udev_list_entry_foreach(entry, udev_enumerate_get_list_entry(enumerate)) {
-    struct udev_device *child = udev_device_new_from_syspath(
-        udev, udev_list_entry_get_name(entry));
+    struct udev_device *child =
+        udev_device_new_from_syspath(udev, udev_list_entry_get_name(entry));
     if (!child) {
       continue;
     }

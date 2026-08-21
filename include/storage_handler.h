@@ -13,7 +13,7 @@
  *   - DISABLED mode: no automatic syncing (not recommended for
  *     removable storage).
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef HOTSWAPD_STORAGE_HANDLER_H
@@ -27,7 +27,7 @@
 #define STORAGE_DEFAULT_FALLBACK_SYNC_INTERVAL_S 60
 #define STORAGE_ATTACH_DISCOVERY_INTERVAL_MS 200
 #define STORAGE_ATTACH_DISCOVERY_TIMEOUT_MS 10000
-#define STORAGE_ATTACH_MAX_ATTEMPTS                                           \
+#define STORAGE_ATTACH_MAX_ATTEMPTS                                            \
   (STORAGE_ATTACH_DISCOVERY_TIMEOUT_MS / STORAGE_ATTACH_DISCOVERY_INTERVAL_MS)
 
 enum storage_attach_result {

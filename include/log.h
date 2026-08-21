@@ -4,7 +4,7 @@
  * Supports syslog (daemon mode) and stderr (foreground mode).
  * Verbosity levels: normal, verbose (-v), debug (-vv).
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef HOTSWAPD_LOG_H
@@ -13,11 +13,11 @@
 /* ── Log levels ──────────────────────────────────────────────────────────── */
 
 enum log_level {
-    LOG_LVL_ERROR = 0,
-    LOG_LVL_WARN,
-    LOG_LVL_INFO,
-    LOG_LVL_VERBOSE,
-    LOG_LVL_DEBUG
+  LOG_LVL_ERROR = 0,
+  LOG_LVL_WARN,
+  LOG_LVL_INFO,
+  LOG_LVL_VERBOSE,
+  LOG_LVL_DEBUG
 };
 
 /* ── Initialization ──────────────────────────────────────────────────────── */
@@ -46,10 +46,10 @@ void log_msg(enum log_level level, const char *fmt, ...)
 
 /* ── Convenience macros ──────────────────────────────────────────────────── */
 
-#define LOG_ERR(...)     log_msg(LOG_LVL_ERROR,   __VA_ARGS__)
-#define LOG_WARN(...)    log_msg(LOG_LVL_WARN,    __VA_ARGS__)
-#define LOG_INFO(...)    log_msg(LOG_LVL_INFO,    __VA_ARGS__)
+#define LOG_ERR(...) log_msg(LOG_LVL_ERROR, __VA_ARGS__)
+#define LOG_WARN(...) log_msg(LOG_LVL_WARN, __VA_ARGS__)
+#define LOG_INFO(...) log_msg(LOG_LVL_INFO, __VA_ARGS__)
 #define LOG_VERBOSE(...) log_msg(LOG_LVL_VERBOSE, __VA_ARGS__)
-#define LOG_DEBUG(...)   log_msg(LOG_LVL_DEBUG,   __VA_ARGS__)
+#define LOG_DEBUG(...) log_msg(LOG_LVL_DEBUG, __VA_ARGS__)
 
 #endif /* HOTSWAPD_LOG_H */

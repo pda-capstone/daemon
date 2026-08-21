@@ -1,7 +1,7 @@
 /*
  * gpio_release.h — Rising-edge GPIO safe-release contact.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef HOTSWAPD_GPIO_RELEASE_H

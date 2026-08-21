@@ -6,7 +6,7 @@
 # "provision" command installs build dependencies, and subsequent "test"
 # invocations are unattended when SSH key authentication is configured.
 #
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-only
 
 set -euo pipefail
 

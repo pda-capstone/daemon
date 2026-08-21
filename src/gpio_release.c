@@ -1,7 +1,7 @@
 /*
  * gpio_release.c — Linux GPIO character-device safe-release input.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "../include/gpio_release.h"
@@ -296,8 +296,7 @@ gpio_release_test_adopt_event_fd(int event_fd, unsigned int debounce_us) {
   return NULL;
 }
 
-int gpio_release_test_chip_score(const char *chip_label,
-                                 const char *line_name,
+int gpio_release_test_chip_score(const char *chip_label, const char *line_name,
                                  unsigned int line_offset) {
   (void)chip_label;
   (void)line_name;

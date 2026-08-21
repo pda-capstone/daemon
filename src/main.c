@@ -1,14 +1,14 @@
 /*
  * main.c — Main event loop and entry point for hotswapd.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
-#include "../include/hotswapd.h"
 #include "../include/dbus_service.h"
 #include "../include/device_monitor.h"
 #include "../include/device_state.h"
 #include "../include/gpio_release.h"
+#include "../include/hotswapd.h"
 #include "../include/log.h"
 #include "../include/module_registry.h"
 #include "../include/storage_handler.h"
@@ -270,9 +270,8 @@ static void handle_gpio_release_trigger(void) {
     LOG_WARN("gpio: release is ambiguous with %d attached modules; configure "
              "--release-devpath-prefix",
              selection.matched);
-    dbus_emit_release_failed("",
-                             "multiple modules attached; configure a USB "
-                             "DEVPATH prefix for this release contact");
+    dbus_emit_release_failed("", "multiple modules attached; configure a USB "
+                                 "DEVPATH prefix for this release contact");
     return;
   }
 
@@ -310,7 +309,8 @@ static void print_usage(const char *prog) {
   printf("  -c <path>   Path to modules.json registry config file\n");
   printf("  -G <chip>   GPIO chip path, or 'auto' (default: auto)\n");
   printf("  -L <line>   GPIO line offset (default: 26 / header pin 37)\n");
-  printf("  -P <prefix> USB DEVPATH prefix controlled by the release contact\n");
+  printf(
+      "  -P <prefix> USB DEVPATH prefix controlled by the release contact\n");
   printf("  --no-gpio-release  Disable the GPIO safe-release input\n");
   printf("  -v          Verbose logging output\n");
   printf("  -vv         Debug logging output (very verbose)\n");
@@ -336,8 +336,8 @@ int main(int argc, char *argv[]) {
       {NULL, 0, NULL, 0}};
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "fc:G:L:P:vvh", long_options,
-                            NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "fc:G:L:P:vvh", long_options, NULL)) !=
+         -1) {
     switch (opt) {
     case 'f':
       foreground = 1;
@@ -363,8 +363,8 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Release DEVPATH prefix is too long\n");
         return EXIT_FAILURE;
       }
-      snprintf(g_release_devpath_prefix, sizeof(g_release_devpath_prefix),
-               "%s", optarg);
+      snprintf(g_release_devpath_prefix, sizeof(g_release_devpath_prefix), "%s",
+               optarg);
       break;
     case 1000:
       gpio_enabled = 0;
@@ -613,9 +613,8 @@ int main(int argc, char *argv[]) {
           ssize_t s = read(ctx->fd, &fdsi, sizeof(struct signalfd_siginfo));
           if (s == sizeof(struct signalfd_siginfo)) {
             if (fdsi.ssi_signo == SIGINT || fdsi.ssi_signo == SIGTERM) {
-              LOG_INFO(
-                  "main: received termination signal (%d), shutting down",
-                  fdsi.ssi_signo);
+              LOG_INFO("main: received termination signal (%d), shutting down",
+                       fdsi.ssi_signo);
               keep_running = 0;
             } else if (fdsi.ssi_signo == SIGHUP) {
               LOG_INFO("main: received SIGHUP, reloading registry");
@@ -630,8 +629,8 @@ int main(int argc, char *argv[]) {
             monitor_set_registry(mon, reg);
           }
         } else if (ctx->source == SRC_GPIO_RELEASE) {
-          int triggered = gpio_release_process(
-              (struct gpio_release *)ctx->data);
+          int triggered =
+              gpio_release_process((struct gpio_release *)ctx->data);
           if (triggered > 0) {
             handle_gpio_release_trigger();
           } else if (triggered < 0) {
@@ -696,8 +695,8 @@ int main(int argc, char *argv[]) {
   /* Free remaining dynamic storage timer contexts. */
   for (int i = 0; i < g_active_context_count; i++) {
     struct main_event_ctx *ctx = g_active_contexts[i];
-    if (ctx && (ctx->source == SRC_ATTACH_TIMER ||
-                ctx->source == SRC_SYNC_TIMER)) {
+    if (ctx &&
+        (ctx->source == SRC_ATTACH_TIMER || ctx->source == SRC_SYNC_TIMER)) {
       free(ctx);
     }
   }

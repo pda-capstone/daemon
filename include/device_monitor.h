@@ -4,7 +4,7 @@
  * Handles initial enumeration of existing USB devices and ongoing
  * monitoring of attach/detach events via the kernel uevent interface.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef HOTSWAPD_DEVICE_MONITOR_H
