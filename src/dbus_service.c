@@ -18,7 +18,8 @@
  *   ListRegistry()      → a(sssss)
  *   RegisterModule(sbsss) → sssssb (root callers only)
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/dbus_service.h"

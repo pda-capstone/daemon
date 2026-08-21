@@ -421,7 +421,7 @@ reported values can be tied to the actual attached module or port.
 - Keep malformed-registry reload transactional.
 - Preserve `-Werror`, install path overrides, and the rule that install does
   not start the service.
-- Preserve the project's GPL-3.0-only SPDX identifiers and top-level license
+- Preserve the project's GPL-3.0-or-later SPDX identifiers and top-level license
   notice when adding or moving source files.
 - Describe storage cleanup as risk reduction, never as a no-data-loss
   guarantee.

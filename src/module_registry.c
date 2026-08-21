@@ -8,7 +8,8 @@
  * Internally, the parser produces a flat Vec<module_info>-style array
  * that can later be extended to merge definitions from multiple sources.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/module_registry.h"

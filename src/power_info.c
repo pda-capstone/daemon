@@ -5,7 +5,8 @@
  * syspath, and optionally reads USB-C Power Delivery data from
  * /sys/class/typec/ and /sys/class/power_supply/.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/power_info.h"

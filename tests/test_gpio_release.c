@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-FileCopyrightText: 2026 Alexander Olivier */
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 
 #include "../include/gpio_release.h"
 #include "../include/gpio_release_internal.h"

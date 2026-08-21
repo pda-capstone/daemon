@@ -329,5 +329,12 @@ See:
 
 ## License
 
-This project is licensed under the GNU General Public License, version 3 only
-(SPDX: `GPL-3.0-only`). See [LICENSE](LICENSE) for the complete license text.
+Copyright (C) 2026 Alexander Olivier
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+SPDX license identifier: `GPL-3.0-or-later`. See [LICENSE](LICENSE) for the
+complete license text.

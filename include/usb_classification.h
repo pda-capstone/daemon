@@ -1,7 +1,8 @@
 /*
  * usb_classification.h — USB class-to-category resolution.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_USB_CLASSIFICATION_H

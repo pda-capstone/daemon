@@ -10,7 +10,8 @@
  * network) can be added later by feeding more module_info entries into
  * the same array.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_MODULE_REGISTRY_H

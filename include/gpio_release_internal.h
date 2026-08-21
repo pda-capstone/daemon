@@ -4,7 +4,8 @@
  * This is intentionally separate from gpio_release.h: daemon callers should
  * only use the production GPIO API.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_GPIO_RELEASE_INTERNAL_H

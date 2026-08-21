@@ -1,7 +1,8 @@
 /*
  * gpio_release.c — Linux GPIO character-device safe-release input.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/gpio_release.h"

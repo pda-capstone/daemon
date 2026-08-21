@@ -13,7 +13,8 @@
  *   - DISABLED mode: no automatic syncing (not recommended for
  *     removable storage).
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_STORAGE_HANDLER_H

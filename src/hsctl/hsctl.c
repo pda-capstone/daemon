@@ -4,7 +4,8 @@
  * Talks to the daemon via the D-Bus system bus.
  * Commands: list, info <devpath>, power, registry, register, monitor.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../../include/hotswapd.h"

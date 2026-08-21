@@ -4,7 +4,8 @@
  * Supports syslog (daemon mode) and stderr (foreground mode).
  * Verbosity levels: normal, verbose (-v), debug (-vv).
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_LOG_H

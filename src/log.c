@@ -5,7 +5,8 @@
  * daemon was started.  Verbosity is controlled at init time via the
  * -v / -vv flags.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/log.h"

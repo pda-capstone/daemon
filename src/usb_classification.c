@@ -1,7 +1,8 @@
 /*
  * usb_classification.c — USB class-to-category resolution.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/usb_classification.h"

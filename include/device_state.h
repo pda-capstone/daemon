@@ -4,7 +4,8 @@
  * Maintains a singly-linked list of hs_device records.  The list is
  * adequate for the expected device count (1–10 concurrent USB peripherals).
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_DEVICE_STATE_H

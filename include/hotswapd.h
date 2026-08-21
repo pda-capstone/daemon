@@ -7,7 +7,8 @@
  * hooks, so that future privilege separation can restrict the root-running
  * core to a narrow set of syscalls.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_H

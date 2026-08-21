@@ -6,7 +6,8 @@
 # It does not simulate udev or GPIO events: attach, detach, and safe-release
 # actions are performed with real hardware by the presenter.
 #
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Alexander Olivier
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 set -Eeuo pipefail
 

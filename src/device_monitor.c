@@ -10,7 +10,8 @@
  * All sysfs attributes are cached at add time because they become
  * unreadable after a remove event.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/device_monitor.h"

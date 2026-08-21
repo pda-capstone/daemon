@@ -15,7 +15,8 @@
  *   MANUAL:       sync only on explicit eject or before detach.
  *   DISABLED:     no automatic syncing.
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/storage_handler.h"
