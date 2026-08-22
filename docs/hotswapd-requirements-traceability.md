@@ -1,8 +1,7 @@
 # hotswapd Requirements Traceability
 
-This document maps the PDA hot-swap daemon requirements from [AGENTS.md](/home/aolivier/hotswapd/AGENTS.md)
-to the current implementation, automated tests, and remaining hardware
-validation needs.
+This document maps the PDA hot-swap daemon requirements to the current
+implementation, automated tests, and remaining hardware validation needs.
 
 ## Summary
 
@@ -27,16 +26,16 @@ pending.
 
 | Requirement | Implementation Evidence | Test / Verification Evidence | Status | Notes |
 |---|---|---|---|---|
-| C implementation | [src/main.c](/home/aolivier/hotswapd/src/main.c:1), [src/device_monitor.c](/home/aolivier/hotswapd/src/device_monitor.c:1), [src/dbus_service.c](/home/aolivier/hotswapd/src/dbus_service.c:1) | `make` | Implemented | Entire daemon and CLI are C code. |
-| User-space daemon | [src/main.c](/home/aolivier/hotswapd/src/main.c:198), [config/hotswapd.service](/home/aolivier/hotswapd/config/hotswapd.service:1) | `make`, target install workflow | Implemented | No kernel modules or kernel-space hot-swap logic. |
-| systemd-managed service | [config/hotswapd.service](/home/aolivier/hotswapd/config/hotswapd.service:1), [Makefile](/home/aolivier/hotswapd/Makefile:87) | `systemd-analyze verify config/hotswapd.service` | Implemented | Runs foreground with `ExecStart=/usr/sbin/hotswapd -f`. |
-| D-Bus identity and notifications | [include/hotswapd.h](/home/aolivier/hotswapd/include/hotswapd.h:27), [src/dbus_service.c](/home/aolivier/hotswapd/src/dbus_service.c:379), [src/hsctl/hsctl.c](/home/aolivier/hotswapd/src/hsctl/hsctl.c:232) | `make`, target `hsctl monitor` and `busctl` workflow | Implemented | `ModuleAttached` now uses `DBUS_TYPE_UINT32` for `speed_mbps`. |
-| USB attach/detach awareness | [src/device_monitor.c](/home/aolivier/hotswapd/src/device_monitor.c:182), [src/main.c](/home/aolivier/hotswapd/src/main.c:90) | `make`, hardware validation checklist | Implemented | Initial enumeration plus live udev events. |
-| Registry-driven metadata and policy | [src/module_registry.c](/home/aolivier/hotswapd/src/module_registry.c:241), [src/device_monitor.c](/home/aolivier/hotswapd/src/device_monitor.c:173), [config/modules.json](/home/aolivier/hotswapd/config/modules.json:1) | [tests/test_registry.c](/home/aolivier/hotswapd/tests/test_registry.c:1), `make test` | Implemented | Exact match wins; category default policy is fallback; compile-time defaults are last resort. |
-| Storage cleanup | [src/storage_handler.c](/home/aolivier/hotswapd/src/storage_handler.c:347), [src/main.c](/home/aolivier/hotswapd/src/main.c:133) | [tests/test_storage.c](/home/aolivier/hotswapd/tests/test_storage.c:1), `make test` | Implemented | Cleanup logic exists; real-device detach safety still needs hardware validation. |
-| Conservative power reporting | [src/power_info.c](/home/aolivier/hotswapd/src/power_info.c:100) | [tests/test_power_info.c](/home/aolivier/hotswapd/tests/test_power_info.c:1), `make test` | Implemented | Legacy USB power and integer speed parsing are covered locally. |
-| Conservative USB-C PD reporting | [src/power_info.c](/home/aolivier/hotswapd/src/power_info.c:153) | `make` | Implemented | Current behavior prefers no PD data over incorrect attribution. |
-| Hardware-free testability where possible | [Makefile](/home/aolivier/hotswapd/Makefile:71), [tests/test_device_state.c](/home/aolivier/hotswapd/tests/test_device_state.c:1), [tests/test_power_info.c](/home/aolivier/hotswapd/tests/test_power_info.c:1), [tests/test_registry.c](/home/aolivier/hotswapd/tests/test_registry.c:1), [tests/test_storage.c](/home/aolivier/hotswapd/tests/test_storage.c:1) | `make test` | Implemented | Current local tests avoid live USB hardware and live system bus dependencies. |
+| C implementation | [src/main.c](../src/main.c#L1), [src/device_monitor.c](../src/device_monitor.c#L1), [src/dbus_service.c](../src/dbus_service.c#L1) | `make` | Implemented | Entire daemon and CLI are C code. |
+| User-space daemon | [src/main.c](../src/main.c#L198), [config/hotswapd.service](../config/hotswapd.service#L1) | `make`, target install workflow | Implemented | No kernel modules or kernel-space hot-swap logic. |
+| systemd-managed service | [config/hotswapd.service](../config/hotswapd.service#L1), [Makefile](../Makefile#L87) | `systemd-analyze verify config/hotswapd.service` | Implemented | Runs foreground with `ExecStart=/usr/sbin/hotswapd -f`. |
+| D-Bus identity and notifications | [include/hotswapd.h](../include/hotswapd.h#L27), [src/dbus_service.c](../src/dbus_service.c#L379), [src/hsctl/hsctl.c](../src/hsctl/hsctl.c#L232) | `make`, target `hsctl monitor` and `busctl` workflow | Implemented | `ModuleAttached` now uses `DBUS_TYPE_UINT32` for `speed_mbps`. |
+| USB attach/detach awareness | [src/device_monitor.c](../src/device_monitor.c#L182), [src/main.c](../src/main.c#L90) | `make`, hardware validation checklist | Implemented | Initial enumeration plus live udev events. |
+| Registry-driven metadata and policy | [src/module_registry.c](../src/module_registry.c#L241), [src/device_monitor.c](../src/device_monitor.c#L173), [config/modules.json](../config/modules.json#L1) | [tests/test_registry.c](../tests/test_registry.c#L1), `make test` | Implemented | Exact match wins; category default policy is fallback; compile-time defaults are last resort. |
+| Storage cleanup | [src/storage_handler.c](../src/storage_handler.c#L347), [src/main.c](../src/main.c#L133) | [tests/test_storage.c](../tests/test_storage.c#L1), `make test` | Implemented | Cleanup logic exists; real-device detach safety still needs hardware validation. |
+| Conservative power reporting | [src/power_info.c](../src/power_info.c#L100) | [tests/test_power_info.c](../tests/test_power_info.c#L1), `make test` | Implemented | Legacy USB power and integer speed parsing are covered locally. |
+| Conservative USB-C PD reporting | [src/power_info.c](../src/power_info.c#L153) | `make` | Implemented | Current behavior prefers no PD data over incorrect attribution. |
+| Hardware-free testability where possible | [Makefile](../Makefile#L71), [tests/test_device_state.c](../tests/test_device_state.c#L1), [tests/test_power_info.c](../tests/test_power_info.c#L1), [tests/test_registry.c](../tests/test_registry.c#L1), [tests/test_storage.c](../tests/test_storage.c#L1) | `make test` | Implemented | Current local tests avoid live USB hardware and live system bus dependencies. |
 | Honest hardware-validation claims | [README.md](../README.md), [docs/hotswapd-validation-checklist.md](hotswapd-validation-checklist.md) | Documentation review | Implemented | Repeated attach/detach and CM5 validation remain explicitly pending. |
 
 ## Current Local Proof
