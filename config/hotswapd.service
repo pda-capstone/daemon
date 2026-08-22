@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Alexander Olivier
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 [Unit]
 Description=USB Hot-Swap Peripheral Daemon
 Documentation=man:hotswapd(8)

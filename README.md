@@ -175,8 +175,12 @@ This script is intentionally scoped to one mass-storage module type. The
 original project criterion covering three distinct physical module types still
 requires separate HID and serial (or equivalent) validation evidence.
 
-See [artifacts/hotswapd-demo.md](artifacts/hotswapd-demo.md) for the complete
+See [docs/hotswapd-demo.md](docs/hotswapd-demo.md) for the complete
 presenter runbook, expected output, safety notes, and troubleshooting steps.
+
+For visual overviews of the system boundary, components, event loop, attach and
+detach flows, storage safety behavior, registry updates, and D-Bus contract, see
+[docs/hotswapd-diagrams.md](docs/hotswapd-diagrams.md).
 
 ## Install
 
@@ -212,13 +216,17 @@ Typical target-system workflow:
 ```sh
 sudo make install
 sudo systemctl daemon-reload
-sudo systemctl restart hotswapd.service
+sudo systemctl enable --now hotswapd.service
 systemctl status hotswapd.service
 busctl --system list | grep org.postmarketos.HotSwap
 hsctl list
 hsctl power
 journalctl -u hotswapd.service -f
 ```
+
+The `enable --now` command both starts the service immediately and enables it
+to start automatically on future boots. This is a one-time setup step after
+installation; the daemon does not need to be started manually after each boot.
 
 ## Registering a Connected Module
 
@@ -316,3 +324,21 @@ items still require target validation on CM5 or equivalent hardware:
 - D-Bus/systemd behavior on the installed target image
 - GPIO26 rising-edge detection, debounce, and ready/failed indication
 - any accurate per-device USB-C PD reporting
+
+See:
+
+- [HANDOFF.md](HANDOFF.md)
+- [docs/hotswapd-requirements-traceability.md](docs/hotswapd-requirements-traceability.md)
+- [docs/hotswapd-validation-checklist.md](docs/hotswapd-validation-checklist.md)
+
+## License
+
+Copyright (C) 2026 Alexander Olivier
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+SPDX license identifier: `GPL-3.0-or-later`. See [LICENSE](LICENSE) for the
+complete license text.

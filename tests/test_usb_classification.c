@@ -1,3 +1,6 @@
+/* SPDX-FileCopyrightText: 2026 Alexander Olivier */
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 #include "../include/usb_classification.h"
 
 #include <stdio.h>
@@ -8,7 +11,7 @@ static int failures;
 #define CHECK(cond, msg)                                                       \
   do {                                                                         \
     if (!(cond)) {                                                             \
-      fprintf(stderr, "FAIL: %s\n", msg);                                    \
+      fprintf(stderr, "FAIL: %s\n", msg);                                      \
       failures++;                                                              \
     }                                                                          \
   } while (0)
@@ -33,8 +36,8 @@ int main(void) {
   CHECK(usb_resolve_category(0, DEV_CAT_UNKNOWN, 0x00, hid_interface, 1) ==
             DEV_CAT_HID,
         "interface-level HID resolves to HID");
-  CHECK(usb_resolve_category(0, DEV_CAT_UNKNOWN, 0x00, composite_interfaces, 3) ==
-            DEV_CAT_STORAGE,
+  CHECK(usb_resolve_category(0, DEV_CAT_UNKNOWN, 0x00, composite_interfaces,
+                             3) == DEV_CAT_STORAGE,
         "composite devices use documented storage-first priority");
   CHECK(usb_resolve_category(0, DEV_CAT_UNKNOWN, 0x08, hid_interface, 1) ==
             DEV_CAT_STORAGE,

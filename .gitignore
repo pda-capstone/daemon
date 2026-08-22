@@ -5,10 +5,8 @@
 # Project binaries
 /hotswapd
 /hsctl
-
-# Artifacts
-artifacts/*
+/tests/test_*
+!/tests/test_*.c
 
 # macOS files
 .DS_Store
-

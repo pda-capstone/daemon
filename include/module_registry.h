@@ -10,7 +10,8 @@
  * network) can be added later by feeding more module_info entries into
  * the same array.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_MODULE_REGISTRY_H
@@ -25,8 +26,8 @@
 
 struct module_sync_policy {
     enum sync_mode mode;
-    int idle_sync_delay_s;       /* seconds of idle before sync (mode=idle) */
-    int fallback_sync_interval_s;/* periodic fallback interval (mode=idle) */
+    int idle_sync_delay_s;        /* seconds of idle before sync (mode=idle) */
+    int fallback_sync_interval_s; /* periodic fallback interval (mode=idle) */
 };
 
 /* ── Module definition ───────────────────────────────────────────────────── */
@@ -120,18 +121,21 @@ int registry_register_device(struct module_registry *reg,
  * Get the default action for a category (from the "defaults" section).
  * Returns NULL if no default is defined for this category.
  */
-const struct module_action *registry_default_attach(
-    const struct module_registry *reg, enum device_category cat);
+const struct module_action *
+registry_default_attach(const struct module_registry *reg,
+                        enum device_category cat);
 
-const struct module_action *registry_default_detach(
-    const struct module_registry *reg, enum device_category cat);
+const struct module_action *
+registry_default_detach(const struct module_registry *reg,
+                        enum device_category cat);
 
 /**
  * Get the default sync policy for a category.
  * Returns NULL if no default is defined.
  */
-const struct module_sync_policy *registry_default_sync(
-    const struct module_registry *reg, enum device_category cat);
+const struct module_sync_policy *
+registry_default_sync(const struct module_registry *reg,
+                      enum device_category cat);
 
 /* ── inotify integration ─────────────────────────────────────────────────── */
 

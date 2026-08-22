@@ -6,7 +6,8 @@
  *
  * Uses the low-level libdbus API directly (no GLib dependency).
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_DBUS_SERVICE_H

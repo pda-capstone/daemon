@@ -1,7 +1,8 @@
 /*
  * usb_classification.h — USB class-to-category resolution.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #ifndef HOTSWAPD_USB_CLASSIFICATION_H
@@ -24,10 +25,8 @@
  * device exposing storage plus another function receives storage cleanup.
  */
 enum device_category usb_resolve_category(
-    int has_registry_category,
-    enum device_category registry_category,
-    unsigned int device_class,
-    const unsigned int *interface_classes,
+    int has_registry_category, enum device_category registry_category,
+    unsigned int device_class, const unsigned int *interface_classes,
     size_t interface_class_count);
 
 #endif /* HOTSWAPD_USB_CLASSIFICATION_H */

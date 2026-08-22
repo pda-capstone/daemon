@@ -5,7 +5,8 @@
  * syspath, and optionally reads USB-C Power Delivery data from
  * /sys/class/typec/ and /sys/class/power_supply/.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/power_info.h"
@@ -24,9 +25,8 @@
  * Read a sysfs attribute file into a buffer, stripping the trailing newline.
  * Returns the number of characters read (excluding NUL), or -1 on error.
  */
-static int read_sysfs_attr(const char *dir, const char *attr,
-                           char *buf, size_t buflen)
-{
+static int read_sysfs_attr(const char *dir, const char *attr, char *buf,
+                           size_t buflen) {
     char path[PATH_MAX];
     int n = snprintf(path, sizeof(path), "%s/%s", dir, attr);
     if (n < 0 || (size_t)n >= sizeof(path)) {
@@ -56,8 +56,7 @@ static int read_sysfs_attr(const char *dir, const char *attr,
 
 /* ── Public parsers ──────────────────────────────────────────────────────── */
 
-unsigned int power_parse_bMaxPower(const char *str)
-{
+unsigned int power_parse_bMaxPower(const char *str) {
     if (!str) {
         return 0;
     }
@@ -72,8 +71,7 @@ unsigned int power_parse_bMaxPower(const char *str)
     return val;
 }
 
-int power_parse_self_powered(const char *str)
-{
+int power_parse_self_powered(const char *str) {
     if (!str) {
         return 0;
     }
@@ -98,8 +96,7 @@ int power_parse_self_powered(const char *str)
 
 /* ── Legacy USB power ────────────────────────────────────────────────────── */
 
-int power_read_legacy(const char *syspath, struct hs_device *dev)
-{
+int power_read_legacy(const char *syspath, struct hs_device *dev) {
     if (!syspath || !dev) {
         return -1;
     }
@@ -142,16 +139,15 @@ int power_read_legacy(const char *syspath, struct hs_device *dev)
         dev->self_powered = 0;
     }
 
-    LOG_VERBOSE("power: legacy — %u mA, %u Mbps, %s",
-                dev->max_power_ma, dev->speed_mbps,
+    LOG_VERBOSE("power: legacy — %u mA, %u Mbps, %s", dev->max_power_ma,
+                dev->speed_mbps,
                 dev->self_powered ? "self-powered" : "bus-powered");
     return 0;
 }
 
 /* ── USB-C Power Delivery ────────────────────────────────────────────────── */
 
-int power_read_pd(struct hs_device *dev)
-{
+int power_read_pd(struct hs_device *dev) {
     if (!dev) {
         return -1;
     }
@@ -168,37 +164,37 @@ int power_read_pd(struct hs_device *dev)
 
 /* ── Human-readable summary ──────────────────────────────────────────────── */
 
-int power_format_string(const struct hs_device *dev, char *buf, size_t len)
-{
+int power_format_string(const struct hs_device *dev, char *buf, size_t len) {
     if (!dev || !buf || len == 0) {
         return -1;
     }
 
     int written = snprintf(buf, len,
-        "Legacy USB Power:\n"
-        "  bMaxPower (declared max): %u mA\n"
-        "  Bus-powered: %s\n"
-        "  Speed: %u Mbps",
-        dev->max_power_ma,
-        dev->self_powered ? "no (self-powered)" : "yes",
-        dev->speed_mbps);
+                           "Legacy USB Power:\n"
+                           "  bMaxPower (declared max): %u mA\n"
+                           "  Bus-powered: %s\n"
+                           "  Speed: %u Mbps",
+                           dev->max_power_ma,
+                           dev->self_powered ? "no (self-powered)" : "yes",
+                           dev->speed_mbps);
 
     if (written < 0 || (size_t)written >= len) {
         return written;
     }
 
     if (dev->has_pd) {
-        int pd_written = snprintf(buf + written, len - (size_t)written,
-            "\nUSB-C PD:\n"
-            "  Power role: %s\n"
-            "  Negotiated voltage: %.1f V\n"
-            "  Negotiated current: %.1f A\n"
-            "  Negotiated power: %.1f W",
-            dev->pd_power_role[0] ? dev->pd_power_role : "unknown",
-            (double)dev->pd_voltage_uv / 1000000.0,
-            (double)dev->pd_current_ua / 1000000.0,
-            ((double)dev->pd_voltage_uv / 1000000.0) *
-            ((double)dev->pd_current_ua / 1000000.0));
+        int pd_written =
+            snprintf(buf + written, len - (size_t)written,
+                     "\nUSB-C PD:\n"
+                     "  Power role: %s\n"
+                     "  Negotiated voltage: %.1f V\n"
+                     "  Negotiated current: %.1f A\n"
+                     "  Negotiated power: %.1f W",
+                     dev->pd_power_role[0] ? dev->pd_power_role : "unknown",
+                     (double)dev->pd_voltage_uv / 1000000.0,
+                     (double)dev->pd_current_ua / 1000000.0,
+                     ((double)dev->pd_voltage_uv / 1000000.0) *
+                         ((double)dev->pd_current_ua / 1000000.0));
 
         if (pd_written > 0) {
             written += pd_written;

@@ -15,11 +15,15 @@
  *   MANUAL:       sync only on explicit eject or before detach.
  *   DISABLED:     no automatic syncing.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/storage_handler.h"
 #include "../include/log.h"
+#ifdef HOTSWAPD_TESTING
+#include "../include/storage_handler_internal.h"
+#endif
 
 #include <dirent.h>
 #include <errno.h>
@@ -56,98 +60,96 @@ static const struct storage_operations default_operations = {
     .sync_mount = production_sync_mount,
 };
 
-static const struct storage_operations *active_operations =
-    &default_operations;
+static const struct storage_operations *active_operations = &default_operations;
 
 void storage_set_operations(const struct storage_operations *operations) {
-  active_operations = operations ? operations : &default_operations;
+    active_operations = operations ? operations : &default_operations;
 }
 
 void storage_reset_operations(void) { active_operations = &default_operations; }
 
 static void copy_string(char *destination, size_t destination_size,
                         const char *source) {
-  if (!destination || destination_size == 0) {
-    return;
-  }
-  size_t length = source ? strlen(source) : 0;
-  if (length >= destination_size) {
-    length = destination_size - 1;
-  }
-  if (length > 0) {
-    memcpy(destination, source, length);
-  }
-  destination[length] = '\0';
+    if (!destination || destination_size == 0) {
+        return;
+    }
+    size_t length = source ? strlen(source) : 0;
+    if (length >= destination_size) {
+        length = destination_size - 1;
+    }
+    if (length > 0) {
+        memcpy(destination, source, length);
+    }
+    destination[length] = '\0';
 }
 
 static int path_is_safe_absolute(const char *path) {
-  if (!path || path[0] != '/') {
-    return 0;
-  }
-  const char *component = path;
-  while ((component = strstr(component, "..")) != NULL) {
-    int left_boundary = component == path || component[-1] == '/';
-    int right_boundary = component[2] == '\0' || component[2] == '/';
-    if (left_boundary && right_boundary) {
-      return 0;
+    if (!path || path[0] != '/') {
+        return 0;
     }
-    component += 2;
-  }
-  return 1;
+    const char *component = path;
+    while ((component = strstr(component, "..")) != NULL) {
+        int left_boundary = component == path || component[-1] == '/';
+        int right_boundary = component[2] == '\0' || component[2] == '/';
+        if (left_boundary && right_boundary) {
+            return 0;
+        }
+        component += 2;
+    }
+    return 1;
 }
 
 static int mkdir_parents(const char *path) {
-  if (!path_is_safe_absolute(path)) {
-    errno = EINVAL;
-    return -1;
-  }
+    if (!path_is_safe_absolute(path)) {
+        errno = EINVAL;
+        return -1;
+    }
 
-  char buffer[PATH_MAX];
-  copy_string(buffer, sizeof(buffer), path);
-  for (char *cursor = buffer + 1; *cursor; cursor++) {
-    if (*cursor != '/') {
-      continue;
+    char buffer[PATH_MAX];
+    copy_string(buffer, sizeof(buffer), path);
+    for (char *cursor = buffer + 1; *cursor; cursor++) {
+        if (*cursor != '/') {
+            continue;
+        }
+        *cursor = '\0';
+        if (mkdir(buffer, 0755) != 0 && errno != EEXIST) {
+            return -1;
+        }
+        *cursor = '/';
     }
-    *cursor = '\0';
     if (mkdir(buffer, 0755) != 0 && errno != EEXIST) {
-      return -1;
+        return -1;
     }
-    *cursor = '/';
-  }
-  if (mkdir(buffer, 0755) != 0 && errno != EEXIST) {
-    return -1;
-  }
-  return 0;
+    return 0;
 }
 
 static int expand_mount_point(const char *configured, const char *source,
                               char *output, size_t output_size) {
-  const char *template = configured && configured[0]
-                             ? configured
-                             : "/run/media/hotswapd/{device}";
-  const char *device = strrchr(source, '/');
-  device = device ? device + 1 : source;
-  const char *token = strstr(template, "{device}");
-  int written;
-  if (token) {
-    written = snprintf(output, output_size, "%.*s%s%s",
-                       (int)(token - template), template, device,
-                       token + strlen("{device}"));
-  } else {
-    written = snprintf(output, output_size, "%s", template);
-  }
-  if (written < 0 || (size_t)written >= output_size ||
-      !path_is_safe_absolute(output)) {
-    errno = EINVAL;
-    return -1;
-  }
-  return 0;
+    const char *template = configured && configured[0]
+                               ? configured
+                               : "/run/media/hotswapd/{device}";
+    const char *device = strrchr(source, '/');
+    device = device ? device + 1 : source;
+    const char *token = strstr(template, "{device}");
+    int written;
+    if (token) {
+        written =
+            snprintf(output, output_size, "%.*s%s%s", (int)(token - template),
+                     template, device, token + strlen("{device}"));
+    } else {
+        written = snprintf(output, output_size, "%s", template);
+    }
+    if (written < 0 || (size_t)written >= output_size ||
+        !path_is_safe_absolute(output)) {
+        errno = EINVAL;
+        return -1;
+    }
+    return 0;
 }
 
 /* ── Mount point scanning ────────────────────────────────────────────────── */
 
-int storage_extract_disk_name(const char *blkdev, char *buf, size_t buflen)
-{
+int storage_extract_disk_name(const char *blkdev, char *buf, size_t buflen) {
     if (!blkdev || !buf || buflen == 0) {
         return -1;
     }
@@ -162,8 +164,7 @@ int storage_extract_disk_name(const char *blkdev, char *buf, size_t buflen)
     memcpy(buf, name, namelen + 1);
 
     size_t digits_start = namelen;
-    while (digits_start > 0 &&
-           buf[digits_start - 1] >= '0' &&
+    while (digits_start > 0 && buf[digits_start - 1] >= '0' &&
            buf[digits_start - 1] <= '9') {
         digits_start--;
     }
@@ -178,18 +179,77 @@ int storage_extract_disk_name(const char *blkdev, char *buf, size_t buflen)
     return 0;
 }
 
-int storage_resolve_usb_parent(const char *blkdev, char *buf, size_t buflen)
-{
+static int sysfs_directory_is_usb_device(const char *directory) {
+    char uevent_path[PATH_MAX];
+    int written =
+        snprintf(uevent_path, sizeof(uevent_path), "%s/uevent", directory);
+    if (written < 0 || (size_t)written >= sizeof(uevent_path)) {
+        return 0;
+    }
+
+    FILE *uevent = fopen(uevent_path, "r");
+    if (!uevent) {
+        return 0;
+    }
+
+    char line[256];
+    int is_usb_device = 0;
+    while (fgets(line, sizeof(line), uevent)) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if (strcmp(line, "DEVTYPE=usb_device") == 0) {
+            is_usb_device = 1;
+            break;
+        }
+    }
+    fclose(uevent);
+    return is_usb_device;
+}
+
+static int resolve_usb_parent_from_path(const char *resolved, char *buf,
+                                        size_t buflen) {
+    if (!resolved || resolved[0] != '/' || !buf || buflen == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    char search[PATH_MAX];
+    size_t search_length = strlen(resolved);
+    if (search_length >= sizeof(search)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    memcpy(search, resolved, search_length + 1);
+
+    while (search_length > 1) {
+        if (sysfs_directory_is_usb_device(search)) {
+            if (search_length >= buflen) {
+                errno = ENAMETOOLONG;
+                return -1;
+            }
+            memcpy(buf, search, search_length + 1);
+            return 0;
+        }
+
+        char *slash = strrchr(search, '/');
+        if (!slash || slash == search) {
+            break;
+        }
+        *slash = '\0';
+        search_length = (size_t)(slash - search);
+    }
+
+    errno = ENODEV;
+    return -1;
+}
+
+int storage_resolve_usb_parent(const char *blkdev, char *buf, size_t buflen) {
     /*
-     * Strategy: resolve /sys/block/<dev> symlink → walk up the sysfs
-     * tree until we find a "usb_device" devtype.
-     *
-     * For example:
-     *   /dev/sdb1 → /sys/block/sdb/sdb1
-     *   /sys/block/sdb → ../../devices/platform/usb/usb1/1-1/1-1:1.0/...
-     *   Walk up to find the usb_device ancestor.
+     * Resolve /sys/block/<dev>, then walk toward the root until an ancestor's
+     * uevent identifies it as DEVTYPE=usb_device. Linux sysfs exposes DEVTYPE
+     * as a uevent entry; it is not generally a standalone "devtype" file.
      */
     if (!blkdev || !buf || buflen == 0) {
+        errno = EINVAL;
         return -1;
     }
 
@@ -198,66 +258,30 @@ int storage_resolve_usb_parent(const char *blkdev, char *buf, size_t buflen)
         return -1;
     }
 
-    /* Read the /sys/block/<disk> symlink */
     char sysblock[PATH_MAX];
-    snprintf(sysblock, sizeof(sysblock), "/sys/block/%s", diskname);
+    int written =
+        snprintf(sysblock, sizeof(sysblock), "/sys/block/%s", diskname);
+    if (written < 0 || (size_t)written >= sizeof(sysblock)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
 
     char resolved[PATH_MAX];
-    char *rp = realpath(sysblock, resolved);
-    if (!rp) {
+    if (!realpath(sysblock, resolved)) {
         return -1;
     }
 
-    /* Walk up the resolved path looking for a directory that has
-     * a "devtype" sysfs attribute containing "usb_device" */
-    char search[PATH_MAX];
-    size_t slen = strlen(resolved);
-    if (slen >= sizeof(search)) {
-        return -1;
-    }
-    memcpy(search, resolved, slen + 1);
-
-    while (slen > 1) {
-        char devtype_path[PATH_MAX];
-        int n = snprintf(devtype_path, sizeof(devtype_path), "%s/devtype", search);
-        if (n < 0 || (size_t)n >= sizeof(devtype_path)) {
-            return -1;
-        }
-
-        FILE *f = fopen(devtype_path, "r");
-        if (f) {
-            char dt[32];
-            if (fgets(dt, sizeof(dt), f)) {
-                /* Strip newline */
-                dt[strcspn(dt, "\n")] = '\0';
-                if (strcmp(dt, "usb_device") == 0) {
-                    fclose(f);
-                    size_t cplen = strlen(search);
-                    if (cplen >= buflen) {
-                        cplen = buflen - 1;
-                    }
-                    memcpy(buf, search, cplen);
-                    buf[cplen] = '\0';
-                    return 0;
-                }
-            }
-            fclose(f);
-        }
-
-        /* Go up one directory */
-        char *slash = strrchr(search, '/');
-        if (!slash || slash == search) {
-            break;
-        }
-        *slash = '\0';
-        slen = (size_t)(slash - search);
-    }
-
-    return -1;  /* Not USB-backed */
+    return resolve_usb_parent_from_path(resolved, buf, buflen);
 }
 
-int storage_scan_mounts(struct hs_device *dev)
-{
+#ifdef HOTSWAPD_TESTING
+int storage_test_resolve_usb_parent_path(const char *resolved, char *buf,
+                                         size_t buflen) {
+    return resolve_usb_parent_from_path(resolved, buf, buflen);
+}
+#endif
+
+int storage_scan_mounts(struct hs_device *dev) {
     if (!dev) {
         return -1;
     }
@@ -285,15 +309,14 @@ int storage_scan_mounts(struct hs_device *dev)
 
         /* Check if this block device belongs to our USB device */
         char parent_syspath[PATH_MAX];
-        if (storage_resolve_usb_parent(ent->mnt_fsname,
-                                       parent_syspath,
+        if (storage_resolve_usb_parent(ent->mnt_fsname, parent_syspath,
                                        sizeof(parent_syspath)) != 0) {
-            continue;  /* Not USB or can't resolve */
+            continue; /* Not USB or can't resolve */
         }
 
         /* Compare the resolved parent syspath with our device's syspath */
         if (strcmp(parent_syspath, dev->syspath) != 0) {
-            continue;  /* Belongs to a different USB device */
+            continue; /* Belongs to a different USB device */
         }
 
         /* Match! Record this mount point */
@@ -313,14 +336,14 @@ int storage_scan_mounts(struct hs_device *dev)
         dev->mount_sources[dev->mount_count][source_len] = '\0';
         dev->mount_count++;
 
-        LOG_INFO("storage: tracked mount point %s for %s",
-                 ent->mnt_dir, dev->devpath);
+        LOG_INFO("storage: tracked mount point %s for %s", ent->mnt_dir,
+                 dev->devpath);
     }
 
     endmntent(mtab);
 
-    LOG_VERBOSE("storage: found %d mount point(s) for %s",
-                dev->mount_count, dev->devpath);
+    LOG_VERBOSE("storage: found %d mount point(s) for %s", dev->mount_count,
+                dev->devpath);
     return dev->mount_count;
 }
 
@@ -369,9 +392,8 @@ static int production_discover_block_devices(const struct hs_device *dev,
         char partition_marker[PATH_MAX];
         n = snprintf(partition_marker, sizeof(partition_marker),
                      "/sys/class/block/%s/partition", entry->d_name);
-        int is_partition =
-            n >= 0 && (size_t)n < sizeof(partition_marker) &&
-            access(partition_marker, F_OK) == 0;
+        int is_partition = n >= 0 && (size_t)n < sizeof(partition_marker) &&
+                           access(partition_marker, F_OK) == 0;
         if (is_partition && partition_count < HOTSWAP_MAX_MOUNT_POINTS) {
             copy_string(partitions[partition_count++], PATH_MAX, device_path);
         } else if (!is_partition && disk_count < HOTSWAP_MAX_MOUNT_POINTS) {
@@ -380,7 +402,7 @@ static int production_discover_block_devices(const struct hs_device *dev,
     }
     closedir(directory);
 
-    char (*selected)[PATH_MAX] = partition_count > 0 ? partitions : disks;
+    char(*selected)[PATH_MAX] = partition_count > 0 ? partitions : disks;
     size_t selected_count = partition_count > 0 ? partition_count : disk_count;
     qsort(selected, selected_count, sizeof(selected[0]), path_compare);
     if (selected_count > max_paths) {
@@ -433,8 +455,8 @@ static int production_mount_device(const char *source, const char *target,
     }
     if (child == 0) {
         if (mount_options[0] != '\0') {
-            execl("/bin/mount", "mount", "-o", mount_options, source,
-                  target, (char *)NULL);
+            execl("/bin/mount", "mount", "-o", mount_options, source, target,
+                  (char *)NULL);
             execl("/usr/bin/mount", "mount", "-o", mount_options, source,
                   target, (char *)NULL);
         } else {
@@ -493,10 +515,8 @@ static int production_sync_mount(const char *target) {
 
 /* ── Sync timer management ───────────────────────────────────────────────── */
 
-int storage_start_sync_timer(struct hs_device *dev,
-                             int idle_delay_s,
-                             int fallback_interval_s)
-{
+int storage_start_sync_timer(struct hs_device *dev, int idle_delay_s,
+                             int fallback_interval_s) {
     if (!dev) {
         return -1;
     }
@@ -525,7 +545,7 @@ int storage_start_sync_timer(struct hs_device *dev,
         /* IDLE mode: initial timer is the idle delay.
          * We re-arm based on write activity in storage_handle_sync_timer. */
         its.it_value.tv_sec = idle_delay_s;
-        its.it_interval.tv_sec = 0;  /* one-shot; re-armed on each expiry */
+        its.it_interval.tv_sec = 0; /* one-shot; re-armed on each expiry */
     }
 
     if (timerfd_settime(tfd, 0, &its, NULL) < 0) {
@@ -537,13 +557,13 @@ int storage_start_sync_timer(struct hs_device *dev,
     dev->sync_timer_fd = tfd;
     dev->dirty = 0;
 
-    LOG_VERBOSE("storage: sync timer started for %s (mode=%d, idle=%ds, fallback=%ds)",
-                dev->devpath, dev->sync_policy, idle_delay_s, fallback_interval_s);
+    LOG_VERBOSE(
+        "storage: sync timer started for %s (mode=%d, idle=%ds, fallback=%ds)",
+        dev->devpath, dev->sync_policy, idle_delay_s, fallback_interval_s);
     return tfd;
 }
 
-void storage_stop_sync_timer(struct hs_device *dev)
-{
+void storage_stop_sync_timer(struct hs_device *dev) {
     if (!dev || dev->sync_timer_fd < 0) {
         return;
     }
@@ -554,8 +574,7 @@ void storage_stop_sync_timer(struct hs_device *dev)
     LOG_VERBOSE("storage: sync timer stopped for %s", dev->devpath);
 }
 
-int storage_handle_sync_timer(struct hs_device *dev)
-{
+int storage_handle_sync_timer(struct hs_device *dev) {
     if (!dev || dev->sync_timer_fd < 0) {
         return -1;
     }
@@ -603,11 +622,10 @@ int storage_handle_sync_timer(struct hs_device *dev)
     /* Perform syncfs on each mounted filesystem. */
     for (int i = 0; i < dev->mount_count; i++) {
         if (active_operations->sync_mount(dev->mount_points[i]) < 0) {
-            LOG_WARN("storage: syncfs failed for %s: %s",
-                     dev->mount_points[i], strerror(errno));
+            LOG_WARN("storage: syncfs failed for %s: %s", dev->mount_points[i],
+                     strerror(errno));
         } else {
-            LOG_DEBUG("storage: syncfs completed for %s",
-                      dev->mount_points[i]);
+            LOG_DEBUG("storage: syncfs completed for %s", dev->mount_points[i]);
         }
     }
 
@@ -680,8 +698,8 @@ int storage_process_attach_once(struct hs_device *dev) {
             LOG_VERBOSE("storage: %s is already mounted at %s", devices[i],
                         target);
         } else if (active_operations->mount_device(
-                       devices[i], target,
-                       dev->on_attach_action.options) != 0) {
+                       devices[i], target, dev->on_attach_action.options) !=
+                   0) {
             LOG_DEBUG("storage: mount attempt for %s at %s failed: %s",
                       devices[i], target, strerror(errno));
             if (fixed_mount_point) {
@@ -740,8 +758,8 @@ int storage_handle_attach_timer(struct hs_device *dev) {
     }
 
     uint64_t expirations;
-    ssize_t count = read(dev->attach_timer_fd, &expirations,
-                         sizeof(expirations));
+    ssize_t count =
+        read(dev->attach_timer_fd, &expirations, sizeof(expirations));
     if (count != (ssize_t)sizeof(expirations) && errno != EAGAIN) {
         LOG_WARN("storage: attach discovery timer read failed: %s",
                  strerror(errno));
@@ -831,7 +849,8 @@ int storage_on_detach(struct hs_device *dev, int *was_unclean) {
         }
         if (!active_operations->mount_matches(source, target)) {
             LOG_WARN("storage: refusing to unmount changed or unrelated mount "
-                     "%s (expected source %s)", target, source);
+                     "%s (expected source %s)",
+                     target, source);
             continue;
         }
 
@@ -841,8 +860,7 @@ int storage_on_detach(struct hs_device *dev, int *was_unclean) {
                      strerror(errno));
         }
 
-        LOG_INFO("storage: %sunmounting %s", unclean ? "lazily " : "",
-                 target);
+        LOG_INFO("storage: %sunmounting %s", unclean ? "lazily " : "", target);
         if (active_operations->unmount_path(target, flags) != 0) {
             if (errno == EINVAL || errno == ENOENT) {
                 LOG_VERBOSE("storage: %s is already unmounted", target);
@@ -854,7 +872,8 @@ int storage_on_detach(struct hs_device *dev, int *was_unclean) {
 
         if (unclean) {
             LOG_WARN("WARNING: %s was removed without unmounting %s. "
-                     "Unsynced data may be lost.", dev->devpath, target);
+                     "Unsynced data may be lost.",
+                     dev->devpath, target);
         }
     }
 

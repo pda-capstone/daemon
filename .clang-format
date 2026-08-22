@@ -1,11 +1,10 @@
 ---
 BasedOnStyle: LLVM
-IndentWidth:     2
----
-Language:        C
+IndentWidth:     4
+Language:        Cpp
 ColumnLimit:     80
-LineEnding:      DeriveLF
+DeriveLineEnding: true
+UseCRLF:         false
 PointerAlignment: Right
 UseTab:          Never
 ...
-

@@ -8,7 +8,8 @@
  * Internally, the parser produces a flat Vec<module_info>-style array
  * that can later be extended to merge definitions from multiple sources.
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-FileCopyrightText: 2026 Alexander Olivier
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include "../include/module_registry.h"
@@ -31,8 +32,8 @@
 
 /* Per-category defaults */
 struct category_defaults {
-    struct module_action  on_attach;
-    struct module_action  on_detach;
+    struct module_action on_attach;
+    struct module_action on_detach;
     struct module_sync_policy sync_policy;
     int has_defaults;
 };
@@ -43,8 +44,8 @@ struct module_registry {
 
     /* Module definitions */
     struct module_info *modules;
-    int                 count;
-    int                 capacity;
+    int count;
+    int capacity;
 
     /* Category defaults */
     struct category_defaults defaults[DEV_CAT_COUNT];
@@ -61,9 +62,8 @@ struct module_registry {
 /**
  * Safely copy a JSON string value into a fixed-size buffer.
  */
-static void json_strcpy(char *dst, size_t dstlen,
-                        struct json_object *obj, const char *key)
-{
+static void json_strcpy(char *dst, size_t dstlen, struct json_object *obj,
+                        const char *key) {
     struct json_object *val;
     if (json_object_object_get_ex(obj, key, &val) &&
         json_object_is_type(val, json_type_string)) {
@@ -85,8 +85,7 @@ static void json_strcpy(char *dst, size_t dstlen,
  * Parse an action object. mount_point is optional and may contain {device},
  * which is expanded to the selected block-device basename at attach time.
  */
-static void parse_action(struct json_object *obj, struct module_action *act)
-{
+static void parse_action(struct json_object *obj, struct module_action *act) {
     memset(act, 0, sizeof(*act));
     if (!obj || !json_object_is_type(obj, json_type_object)) {
         return;
@@ -94,8 +93,7 @@ static void parse_action(struct json_object *obj, struct module_action *act)
 
     json_strcpy(act->action, sizeof(act->action), obj, "action");
     json_strcpy(act->options, sizeof(act->options), obj, "options");
-    json_strcpy(act->mount_point, sizeof(act->mount_point), obj,
-                "mount_point");
+    json_strcpy(act->mount_point, sizeof(act->mount_point), obj, "mount_point");
     act->has_action = (act->action[0] != '\0') ? 1 : 0;
 }
 
@@ -103,8 +101,7 @@ static void parse_action(struct json_object *obj, struct module_action *act)
  * Parse a sync_policy object from JSON.
  */
 static void parse_sync_policy(struct json_object *obj,
-                              struct module_sync_policy *sp)
-{
+                              struct module_sync_policy *sp) {
     memset(sp, 0, sizeof(*sp));
     sp->mode = SYNC_MODE_IDLE;
     sp->idle_sync_delay_s = STORAGE_DEFAULT_IDLE_SYNC_DELAY_S;
@@ -140,14 +137,15 @@ static void parse_sync_policy(struct json_object *obj,
     if (json_object_object_get_ex(obj, "fallback_sync_interval", &val)) {
         sp->fallback_sync_interval_s = json_object_get_int(val);
         if (sp->fallback_sync_interval_s <= 0) {
-            sp->fallback_sync_interval_s = STORAGE_DEFAULT_FALLBACK_SYNC_INTERVAL_S;
+            sp->fallback_sync_interval_s =
+                STORAGE_DEFAULT_FALLBACK_SYNC_INTERVAL_S;
         }
     }
 }
 
 /* Storage handler default constants (avoid circular include) */
 #ifndef STORAGE_DEFAULT_IDLE_SYNC_DELAY_S
-#define STORAGE_DEFAULT_IDLE_SYNC_DELAY_S       5
+#define STORAGE_DEFAULT_IDLE_SYNC_DELAY_S 5
 #endif
 #ifndef STORAGE_DEFAULT_FALLBACK_SYNC_INTERVAL_S
 #define STORAGE_DEFAULT_FALLBACK_SYNC_INTERVAL_S 60
@@ -156,8 +154,7 @@ static void parse_sync_policy(struct json_object *obj,
 /**
  * Parse a single module entry from the "modules" array.
  */
-static int parse_module(struct json_object *entry, struct module_info *info)
-{
+static int parse_module(struct json_object *entry, struct module_info *info) {
     memset(info, 0, sizeof(*info));
 
     if (!entry || !json_object_is_type(entry, json_type_object)) {
@@ -165,9 +162,11 @@ static int parse_module(struct json_object *entry, struct module_info *info)
     }
 
     json_strcpy(info->vendor_id, sizeof(info->vendor_id), entry, "vendor_id");
-    json_strcpy(info->product_id, sizeof(info->product_id), entry, "product_id");
+    json_strcpy(info->product_id, sizeof(info->product_id), entry,
+                "product_id");
     json_strcpy(info->name, sizeof(info->name), entry, "name");
-    json_strcpy(info->description, sizeof(info->description), entry, "description");
+    json_strcpy(info->description, sizeof(info->description), entry,
+                "description");
 
     /* Category */
     struct json_object *cat_obj;
@@ -195,7 +194,8 @@ static int parse_module(struct json_object *entry, struct module_info *info)
     } else {
         info->sync_policy.mode = SYNC_MODE_IDLE;
         info->sync_policy.idle_sync_delay_s = STORAGE_DEFAULT_IDLE_SYNC_DELAY_S;
-        info->sync_policy.fallback_sync_interval_s = STORAGE_DEFAULT_FALLBACK_SYNC_INTERVAL_S;
+        info->sync_policy.fallback_sync_interval_s =
+            STORAGE_DEFAULT_FALLBACK_SYNC_INTERVAL_S;
     }
 
     /* Validate: vendor_id and product_id are required */
@@ -211,8 +211,7 @@ static int parse_module(struct json_object *entry, struct module_info *info)
  * Parse the "defaults" section.
  */
 static void parse_defaults(struct json_object *defaults_obj,
-                           struct category_defaults defs[])
-{
+                           struct category_defaults defs[]) {
     if (!defaults_obj || !json_object_is_type(defaults_obj, json_type_object)) {
         return;
     }
@@ -248,12 +247,11 @@ static void parse_defaults(struct json_object *defaults_obj,
 /**
  * Internal: parse the full JSON file into the registry struct.
  */
-static int registry_parse(struct module_registry *reg)
-{
+static int registry_parse(struct module_registry *reg) {
     struct json_object *root = json_object_from_file(reg->path);
     if (!root) {
-        LOG_ERR("registry: failed to parse %s: %s",
-                reg->path, json_util_get_last_err());
+        LOG_ERR("registry: failed to parse %s: %s", reg->path,
+                json_util_get_last_err());
         return -1;
     }
 
@@ -277,7 +275,8 @@ static int registry_parse(struct module_registry *reg)
 
     int valid_count = 0;
     for (int i = 0; i < n; i++) {
-        struct json_object *entry = json_object_array_get_idx(modules_arr, (size_t)i);
+        struct json_object *entry =
+            json_object_array_get_idx(modules_arr, (size_t)i);
         if (parse_module(entry, &new_modules[valid_count]) == 0) {
             valid_count++;
         }
@@ -301,13 +300,12 @@ static int registry_parse(struct module_registry *reg)
     reg->capacity = n;
     memcpy(reg->defaults, new_defaults, sizeof(reg->defaults));
 
-    LOG_INFO("registry: loaded %d module definition(s) from %s",
-             valid_count, reg->path);
+    LOG_INFO("registry: loaded %d module definition(s) from %s", valid_count,
+             reg->path);
     return 0;
 }
 
-static int registry_setup_watch(struct module_registry *reg)
-{
+static int registry_setup_watch(struct module_registry *reg) {
     const char *slash;
     size_t dirlen;
     size_t namelen;
@@ -347,10 +345,10 @@ static int registry_setup_watch(struct module_registry *reg)
         reg->watch_name[namelen] = '\0';
     }
 
-    reg->watch_fd = inotify_add_watch(reg->inotify_fd, reg->watch_dir,
-                                      IN_CLOSE_WRITE | IN_MOVED_TO |
-                                          IN_CREATE | IN_DELETE |
-                                          IN_DELETE_SELF | IN_MOVE_SELF);
+    reg->watch_fd =
+        inotify_add_watch(reg->inotify_fd, reg->watch_dir,
+                          IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE | IN_DELETE |
+                              IN_DELETE_SELF | IN_MOVE_SELF);
     if (reg->watch_fd < 0) {
         LOG_WARN("registry: inotify_add_watch failed for %s: %s",
                  reg->watch_dir, strerror(errno));
@@ -363,8 +361,7 @@ static int registry_setup_watch(struct module_registry *reg)
 
 /* ── Public API — Lifecycle ──────────────────────────────────────────────── */
 
-struct module_registry *registry_load(const char *path)
-{
+struct module_registry *registry_load(const char *path) {
     if (!path) {
         LOG_ERR("registry: NULL path");
         return NULL;
@@ -409,8 +406,7 @@ struct module_registry *registry_load(const char *path)
     return reg;
 }
 
-int registry_reload(struct module_registry *reg)
-{
+int registry_reload(struct module_registry *reg) {
     if (!reg) {
         return -1;
     }
@@ -419,8 +415,7 @@ int registry_reload(struct module_registry *reg)
     return registry_parse(reg);
 }
 
-void registry_free(struct module_registry *reg)
-{
+void registry_free(struct module_registry *reg) {
     if (!reg) {
         return;
     }
@@ -440,8 +435,7 @@ void registry_free(struct module_registry *reg)
 
 const struct module_info *registry_lookup(const struct module_registry *reg,
                                           const char *vendor_id,
-                                          const char *product_id)
-{
+                                          const char *product_id) {
     if (!reg || !vendor_id || !product_id) {
         return NULL;
     }
@@ -457,16 +451,14 @@ const struct module_info *registry_lookup(const struct module_registry *reg,
 }
 
 const struct module_info *registry_get(const struct module_registry *reg,
-                                       int index)
-{
+                                       int index) {
     if (!reg || index < 0 || index >= reg->count) {
         return NULL;
     }
     return &reg->modules[index];
 }
 
-static int usb_id_is_valid(const char *id)
-{
+static int usb_id_is_valid(const char *id) {
     if (!id || strlen(id) != 4) {
         return 0;
     }
@@ -478,8 +470,7 @@ static int usb_id_is_valid(const char *id)
     return 1;
 }
 
-static int write_all(int fd, const char *data, size_t length)
-{
+static int write_all(int fd, const char *data, size_t length) {
     size_t offset = 0;
     while (offset < length) {
         ssize_t written = write(fd, data + offset, length - offset);
@@ -499,9 +490,8 @@ static int write_all(int fd, const char *data, size_t length)
 }
 
 static struct json_object *find_module_object(struct json_object *modules,
-                                               const char *vendor_id,
-                                               const char *product_id)
-{
+                                              const char *vendor_id,
+                                              const char *product_id) {
     size_t count = json_object_array_length(modules);
     for (size_t i = 0; i < count; i++) {
         struct json_object *entry = json_object_array_get_idx(modules, i);
@@ -525,11 +515,10 @@ static struct json_object *find_module_object(struct json_object *modules,
 
 static int write_registry_atomically(struct module_registry *reg,
                                      struct json_object *root,
-                                     const struct stat *original_status)
-{
+                                     const struct stat *original_status) {
     char temporary[PATH_MAX];
-    int length = snprintf(temporary, sizeof(temporary), "%s.tmp.XXXXXX",
-                          reg->path);
+    int length =
+        snprintf(temporary, sizeof(temporary), "%s.tmp.XXXXXX", reg->path);
     if (length < 0 || (size_t)length >= sizeof(temporary)) {
         errno = ENAMETOOLONG;
         return -1;
@@ -592,26 +581,23 @@ static int write_registry_atomically(struct module_registry *reg,
     }
     result = 0;
 
-done:
-    {
-        int saved_errno = errno;
-        if (fd >= 0) {
-            close(fd);
-        }
-        if (temporary[0] != '\0') {
-            unlink(temporary);
-        }
-        errno = saved_errno;
+done : {
+    int saved_errno = errno;
+    if (fd >= 0) {
+        close(fd);
     }
+    if (temporary[0] != '\0') {
+        unlink(temporary);
+    }
+    errno = saved_errno;
+}
     return result;
 }
 
 int registry_register_device(struct module_registry *reg,
                              const struct hs_device *dev,
-                             const char *name_override,
-                             const char *description, int replace,
-                             int *was_replaced)
-{
+                             const char *name_override, const char *description,
+                             int replace, int *was_replaced) {
     if (was_replaced) {
         *was_replaced = 0;
     }
@@ -619,9 +605,8 @@ int registry_register_device(struct module_registry *reg,
         !usb_id_is_valid(dev->product_id) || dev->category <= DEV_CAT_UNKNOWN ||
         dev->category >= DEV_CAT_COUNT ||
         (name_override && strlen(name_override) >= HOTSWAP_MAX_NAME) ||
-        (description &&
-         strlen(description) >=
-             sizeof(((struct module_info *)0)->description))) {
+        (description && strlen(description) >=
+                            sizeof(((struct module_info *)0)->description))) {
         errno = EINVAL;
         return -1;
     }
@@ -663,8 +648,8 @@ int registry_register_device(struct module_registry *reg,
         goto done;
     }
 
-    struct json_object *entry = find_module_object(
-        modules, dev->vendor_id, dev->product_id);
+    struct json_object *entry =
+        find_module_object(modules, dev->vendor_id, dev->product_id);
     int replacing = entry != NULL;
     if (replacing && !replace) {
         json_object_put(root);
@@ -683,17 +668,20 @@ int registry_register_device(struct module_registry *reg,
         }
     }
 
-    const char *name = name_override && name_override[0] ? name_override :
-                       (dev->product_name[0] ? dev->product_name :
-                        (dev->vendor_name[0] ? dev->vendor_name : "USB module"));
+    const char *name =
+        name_override && name_override[0]
+            ? name_override
+            : (dev->product_name[0]
+                   ? dev->product_name
+                   : (dev->vendor_name[0] ? dev->vendor_name : "USB module"));
     json_object_object_add(entry, "vendor_id",
                            json_object_new_string(dev->vendor_id));
     json_object_object_add(entry, "product_id",
                            json_object_new_string(dev->product_id));
     json_object_object_add(entry, "name", json_object_new_string(name));
-    json_object_object_add(entry, "category",
-                           json_object_new_string(
-                               category_to_string(dev->category)));
+    json_object_object_add(
+        entry, "category",
+        json_object_new_string(category_to_string(dev->category)));
     if (description && description[0]) {
         json_object_object_add(entry, "description",
                                json_object_new_string(description));
@@ -716,44 +704,44 @@ int registry_register_device(struct module_registry *reg,
     if (was_replaced) {
         *was_replaced = replacing;
     }
-    LOG_INFO("registry: %s %s:%s (%s)",
-             replacing ? "updated" : "registered", dev->vendor_id,
-             dev->product_id, name);
+    LOG_INFO("registry: %s %s:%s (%s)", replacing ? "updated" : "registered",
+             dev->vendor_id, dev->product_id, name);
     result = 0;
 
-done:
-    {
-        int saved_errno = errno;
-        flock(lock_fd, LOCK_UN);
-        close(lock_fd);
-        errno = saved_errno;
-    }
+done : {
+    int saved_errno = errno;
+    flock(lock_fd, LOCK_UN);
+    close(lock_fd);
+    errno = saved_errno;
+}
     return result;
 }
 
-const struct module_action *registry_default_attach(
-    const struct module_registry *reg, enum device_category cat)
-{
+const struct module_action *
+registry_default_attach(const struct module_registry *reg,
+                        enum device_category cat) {
     if (!reg || cat >= DEV_CAT_COUNT || !reg->defaults[cat].has_defaults) {
         return NULL;
     }
     return reg->defaults[cat].on_attach.has_action
-           ? &reg->defaults[cat].on_attach : NULL;
+               ? &reg->defaults[cat].on_attach
+               : NULL;
 }
 
-const struct module_action *registry_default_detach(
-    const struct module_registry *reg, enum device_category cat)
-{
+const struct module_action *
+registry_default_detach(const struct module_registry *reg,
+                        enum device_category cat) {
     if (!reg || cat >= DEV_CAT_COUNT || !reg->defaults[cat].has_defaults) {
         return NULL;
     }
     return reg->defaults[cat].on_detach.has_action
-           ? &reg->defaults[cat].on_detach : NULL;
+               ? &reg->defaults[cat].on_detach
+               : NULL;
 }
 
-const struct module_sync_policy *registry_default_sync(
-    const struct module_registry *reg, enum device_category cat)
-{
+const struct module_sync_policy *
+registry_default_sync(const struct module_registry *reg,
+                      enum device_category cat) {
     if (!reg || cat >= DEV_CAT_COUNT || !reg->defaults[cat].has_defaults) {
         return NULL;
     }
@@ -762,19 +750,16 @@ const struct module_sync_policy *registry_default_sync(
 
 /* ── Public API — inotify ────────────────────────────────────────────────── */
 
-int registry_get_inotify_fd(const struct module_registry *reg)
-{
+int registry_get_inotify_fd(const struct module_registry *reg) {
     return reg ? reg->inotify_fd : -1;
 }
 
-int registry_handle_inotify_event(struct module_registry *reg)
-{
+int registry_handle_inotify_event(struct module_registry *reg) {
     if (!reg || reg->inotify_fd < 0) {
         return -1;
     }
 
-    char buf[4096]
-        __attribute__((aligned(__alignof__(struct inotify_event))));
+    char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
     int should_reload = 0;
 
     for (;;) {
@@ -788,10 +773,10 @@ int registry_handle_inotify_event(struct module_registry *reg)
             return -1;
         }
         if (n == 0) {
-            break;  /* EAGAIN or error — done */
+            break; /* EAGAIN or error — done */
         }
 
-        for (char *ptr = buf; ptr < buf + n; ) {
+        for (char *ptr = buf; ptr < buf + n;) {
             struct inotify_event *ev = (struct inotify_event *)ptr;
 
             if ((ev->mask & (IN_DELETE_SELF | IN_MOVE_SELF)) != 0) {
@@ -817,12 +802,10 @@ int registry_handle_inotify_event(struct module_registry *reg)
 
 /* ── Public API — Introspection ──────────────────────────────────────────── */
 
-int registry_count(const struct module_registry *reg)
-{
+int registry_count(const struct module_registry *reg) {
     return reg ? reg->count : 0;
 }
 
-const char *registry_path(const struct module_registry *reg)
-{
+const char *registry_path(const struct module_registry *reg) {
     return reg ? reg->path : NULL;
 }
